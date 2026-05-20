@@ -24,9 +24,18 @@ export const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
 
-  // ----- WhatsApp / Meta -----
-  META_APP_SECRET: z.string().min(1, 'META_APP_SECRET is required for webhook signature verification'),
-  META_WEBHOOK_VERIFY_TOKEN: z.string().min(1, 'META_WEBHOOK_VERIFY_TOKEN is required'),
+  // ----- WhatsApp / Meta (globales a la app, no por business) -----
+  META_APP_ID: z.string().min(1, 'META_APP_ID is required'),
+  META_APP_SECRET: z
+    .string()
+    .min(1, 'META_APP_SECRET is required for webhook signature verification'),
+  META_WEBHOOK_VERIFY_TOKEN: z
+    .string()
+    .min(8, 'META_WEBHOOK_VERIFY_TOKEN must be at least 8 chars'),
+  META_GRAPH_API_VERSION: z.string().default('v21.0'),
+  // Dev-only: test number credentials (en prod cada business trae las suyas en DB)
+  META_DEV_PHONE_NUMBER_ID: z.string().optional(),
+  META_DEV_ACCESS_TOKEN: z.string().optional(),
 
   // ----- Encryption -----
   ENCRYPTION_MASTER_KEY: z
