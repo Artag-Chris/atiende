@@ -20,9 +20,7 @@ export const EnvSchema = z.object({
   // ============================================================
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3000),
-  LOG_LEVEL: z
-    .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
-    .default('info'),
+  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
   LOG_FORMAT: z.enum(['json', 'pretty']).default('pretty'),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
@@ -101,11 +99,7 @@ export const EnvSchema = z.object({
   // ============================================================
   WEBHOOK_GROUPING_WINDOW_MS: z.coerce.number().int().min(0).default(8000),
   WEBHOOK_BODY_SIZE_LIMIT_KB: z.coerce.number().int().positive().default(128),
-  WEBHOOK_RATE_LIMIT_PER_BUSINESS_PER_MIN: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(600),
+  WEBHOOK_RATE_LIMIT_PER_BUSINESS_PER_MIN: z.coerce.number().int().positive().default(600),
 
   // ============================================================
   // 9. AGENT BUDGETS
@@ -159,9 +153,7 @@ export const EnvSchema = z.object({
   // 14-17. FEATURE FLAGS (consumidos por src/config/features.ts)
   // ============================================================
   FEATURE_LLM_PRIMARY: z.enum(['claude', 'openai', 'mock']).default('claude'),
-  FEATURE_LLM_FALLBACK: z
-    .union([z.enum(['claude', 'openai', 'mock']), z.literal('')])
-    .default(''),
+  FEATURE_LLM_FALLBACK: z.union([z.enum(['claude', 'openai', 'mock']), z.literal('')]).default(''),
   FEATURE_AI_PROMPT_CACHING: boolFromEnv.default(true),
   FEATURE_AI_COMPACTION: boolFromEnv.default(true),
   FEATURE_AI_ADAPTIVE_THINKING: boolFromEnv.default(true),

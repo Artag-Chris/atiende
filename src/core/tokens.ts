@@ -1,16 +1,55 @@
 /**
  * Tokens de inyección de dependencias (NestJS DI).
  *
+ * TODOS los tokens del proyecto viven aquí — una sola fuente de verdad.
+ * Convención: `<NOMBRE>_TOKEN` para evitar colisiones con tipos del mismo nombre.
+ *
  * Los ports se inyectan vía estos tokens para que el core no dependa
- * de las implementaciones concretas. Cada modulo registra el provider
+ * de las implementaciones concretas. Cada módulo registra el provider
  * concreto para el token correspondiente.
  */
 
-export const LLM_PROVIDER = Symbol('LLM_PROVIDER');
-export const LLM_PROVIDER_FALLBACK = Symbol('LLM_PROVIDER_FALLBACK');
-export const CHANNEL_PROVIDER = Symbol('CHANNEL_PROVIDER');
-export const EMBEDDING_PROVIDER = Symbol('EMBEDDING_PROVIDER');
-export const RESPONSE_CACHE = Symbol('RESPONSE_CACHE');
-export const EXACT_CACHE = Symbol('EXACT_CACHE');
-export const FEATURES = Symbol('FEATURES');
-export const TOOL_MODULES = Symbol('TOOL_MODULES');
+// ----- Config ----------------------------------------------------------------
+export const ENV_TOKEN = Symbol('ENV');
+export const FEATURES_TOKEN = Symbol('FEATURES');
+export const AI_CONFIG_TOKEN = Symbol('AI_CONFIG');
+export const CIRCUIT_BREAKER_CONFIG_TOKEN = Symbol('CIRCUIT_BREAKER_CONFIG');
+
+// ----- LLM providers ---------------------------------------------------------
+export const LLM_PROVIDER_TOKEN = Symbol('LLM_PROVIDER');
+export const LLM_PROVIDER_FALLBACK_TOKEN = Symbol('LLM_PROVIDER_FALLBACK');
+
+// ----- Embeddings ------------------------------------------------------------
+export const EMBEDDING_PROVIDER_TOKEN = Symbol('EMBEDDING_PROVIDER');
+
+// ----- Channels (multi-binding: pueden ser varios habilitados a la vez) ------
+export const CHANNEL_PROVIDERS_TOKEN = Symbol('CHANNEL_PROVIDERS');
+
+// ----- Caching (capas independientes) ----------------------------------------
+export const EXACT_CACHE_TOKEN = Symbol('EXACT_CACHE');
+export const SEMANTIC_CACHE_TOKEN = Symbol('SEMANTIC_CACHE');
+
+// ----- Tools (multi-binding: el agente recibe todas las habilitadas) ---------
+export const TOOL_MODULES_TOKEN = Symbol('TOOL_MODULES');
+
+// ============================================================================
+// DEPRECATED — mantener temporalmente para no romper imports en módulos viejos.
+// Eliminar tras migrar todos los consumers a los `_TOKEN` aliases.
+// ============================================================================
+
+/** @deprecated Use FEATURES_TOKEN. */
+export const FEATURES = FEATURES_TOKEN;
+/** @deprecated Use LLM_PROVIDER_TOKEN. */
+export const LLM_PROVIDER = LLM_PROVIDER_TOKEN;
+/** @deprecated Use LLM_PROVIDER_FALLBACK_TOKEN. */
+export const LLM_PROVIDER_FALLBACK = LLM_PROVIDER_FALLBACK_TOKEN;
+/** @deprecated Use CHANNEL_PROVIDERS_TOKEN (multi-binding). */
+export const CHANNEL_PROVIDER = CHANNEL_PROVIDERS_TOKEN;
+/** @deprecated Use EMBEDDING_PROVIDER_TOKEN. */
+export const EMBEDDING_PROVIDER = EMBEDDING_PROVIDER_TOKEN;
+/** @deprecated Use EXACT_CACHE_TOKEN or SEMANTIC_CACHE_TOKEN. */
+export const RESPONSE_CACHE = SEMANTIC_CACHE_TOKEN;
+/** @deprecated Use EXACT_CACHE_TOKEN. */
+export const EXACT_CACHE = EXACT_CACHE_TOKEN;
+/** @deprecated Use TOOL_MODULES_TOKEN. */
+export const TOOL_MODULES = TOOL_MODULES_TOKEN;

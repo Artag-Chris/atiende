@@ -1,9 +1,9 @@
 import type {
   ChatMessage,
   StopReason,
+  TokenUsage,
   ToolCall,
   ToolDefinition,
-  TokenUsage,
 } from '../domain/types';
 
 /**
@@ -30,8 +30,16 @@ export interface ChatRequest {
   cacheable?: boolean;
   effort?: Effort;
   maxTokens: number;
-  /** Forzar el uso de una tool específica (provider may or may not support). */
+  /**
+   * Forzar el uso de una tool específica. Provider-specific: si el adapter
+   * no lo soporta, lo ignora silenciosamente.
+   */
   forceTool?: string;
+  /**
+   * Para cancelar el request (timeout customizado, request del cliente cancelada).
+   * Cada adapter debe respetarlo y abortar la llamada HTTP cuando se dispare.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ChatResponse {

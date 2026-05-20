@@ -18,13 +18,15 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:cov": "vitest run --coverage",
-    "test:e2e": "vitest run --config ./vitest.e2e.config.ts",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests",
+    "test:cov": "vitest run --coverage --passWithNoTests",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "lint:check": "eslint \"{src,test}/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.{ts,tsx}\" --no-error-on-unmatched-pattern",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.{ts,tsx}\" --no-error-on-unmatched-pattern",
     "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint:check && npm run format:check && npm run test",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
@@ -32,7 +34,7 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
-    "prepare": "echo 'Setup hooks here (husky etc.) when needed'"
+    "postinstall": "prisma generate || echo 'Prisma generate skipped (DATABASE_URL not set yet — run manually after .env is configured)'"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
@@ -41,6 +43,12 @@
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/throttler": "^6.4.0",
+    "helmet": "^8.0.0",
+    "nestjs-pino": "^4.4.0",
+    "pino": "^9.5.0",
+    "pino-http": "^10.4.0",
+    "pino-pretty": "^13.0.0",
     "@prisma/client": "^6.0.0",
     "bullmq": "^5.0.0",
     "class-transformer": "^0.5.1",
@@ -53,6 +61,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
@@ -70,7 +79,7 @@
     "ts-node": "^10.9.0",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.5.0",
-    "unplugin-swc": "^1.5.0",
+    "typescript-eslint": "^8.0.0",
     "vitest": "^2.0.0"
   }
 }

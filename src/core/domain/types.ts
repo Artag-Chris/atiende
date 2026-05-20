@@ -9,6 +9,28 @@
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
 
+/** Canal por el que llega/sale un mensaje. Multi-channel ready desde día 1. */
+export type Channel = 'whatsapp' | 'web_chat' | 'telegram';
+
+/**
+ * Invocación de una tool por el agente.
+ * Comparte forma con el bloque de contenido `tool_use` para evitar duplicación.
+ */
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+/**
+ * Resultado de una tool, devuelto al modelo como tool_result block.
+ */
+export interface ToolResult {
+  toolUseId: string;
+  content: string;
+  isError?: boolean;
+}
+
 /**
  * Bloque de contenido de un mensaje. Diseñado para ser compatible con la
  * estructura de Anthropic (text blocks + tool_use + tool_result), pero
@@ -16,13 +38,8 @@ export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
  */
 export type ContentBlock =
   | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
-  | {
-      type: 'tool_result';
-      toolUseId: string;
-      content: string;
-      isError?: boolean;
-    };
+  | ({ type: 'tool_use' } & ToolCall)
+  | ({ type: 'tool_result' } & ToolResult);
 
 export interface ChatMessage {
   role: MessageRole;
@@ -38,12 +55,6 @@ export interface ToolDefinition {
   description: string;
   /** JSON Schema del input. Lo más simple: derivado desde Zod por el módulo. */
   inputSchema: Record<string, unknown>;
-}
-
-export interface ToolCall {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -79,12 +90,18 @@ export interface TurnContext {
   businessId: string;
   conversationId: string;
   customerPhone: string;
+  /** Canal por el que llega este turno (necesario para multi-channel). */
+  channel: Channel;
   /** Cuántos turnos previos hay en la conversación (incluyendo este). */
   historyLength: number;
   /** True si el query del cliente contiene PII detectada (ver detectores). */
   hasPersonalInfo: boolean;
-  /** True si este turno va a invocar una tool de estado (create_order, escalate). */
-  involvesStatefulTool: boolean;
-  /** Configuración relevante del business (slice de Business.settings). */
-  businessConfig: Record<string, unknown>;
+  /**
+   * Predicción ANTES de llamar al LLM de si este turno podría involucrar una
+   * tool de estado. Usado por el response cache para decidir bypass.
+   * Decisión final post-LLM la toma el AgentService verificando los tool_calls reales.
+   */
+  mayInvolveStatefulTool: boolean;
+  /** Configuración relevante del business (slice immutable de Business.settings). */
+  businessConfig: Readonly<Record<string, unknown>>;
 }

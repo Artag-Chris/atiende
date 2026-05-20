@@ -1,11 +1,26 @@
+import type { Channel } from '../domain/types';
+
 /**
  * Port para canales de mensajería (WhatsApp, Web Chat, Telegram, ...).
  * Cada canal implementa esta interfaz desde src/modules/channels/<name>/.
+ *
+ * Diseño:
+ *   - parseInboundWebhook() es PURO: no toca DB, devuelve datos crudos del webhook.
+ *     El service consumidor resuelve businessId luego (lookup por phone_number_id).
+ *   - send() es async: hace la llamada HTTP al provider real.
+ *   - verifyWebhookSignature() es sync: HMAC sobre el raw body.
  */
 
-export interface InboundMessage {
-  /** ID del business al que llegó el mensaje. */
-  businessId: string;
+/**
+ * Mensaje entrante parseado desde un webhook, ANTES de resolver el business.
+ * El consumer (WebhookController) hace la lookup por externalAccountId.
+ */
+export interface ParsedInboundMessage {
+  /**
+   * Identificador del cuenta destino en el canal (ej: phone_number_id de WhatsApp,
+   * chat_id de Telegram). Usado por el service para encontrar el Business correspondiente.
+   */
+  externalAccountId: string;
   /** Identificador del remitente en el canal (ej: número de teléfono). */
   from: string;
   /** ID externo del mensaje en el canal (para idempotencia). */
@@ -20,6 +35,7 @@ export interface InboundMessage {
 }
 
 export interface OutboundMessage {
+  /** El business desde donde se envía (para resolver credenciales encriptadas en DB). */
   businessId: string;
   to: string;
   text: string;
@@ -34,22 +50,23 @@ export interface SendResult {
  * Port del canal. El core no sabe que existe WhatsApp.
  */
 export interface ChannelProviderPort {
-  readonly name: string;
+  readonly name: Channel;
 
-  /** Envía un mensaje saliente al cliente final. */
+  /** Envía un mensaje saliente al cliente final. Hace lookup de credenciales del business internamente. */
   send(message: OutboundMessage): Promise<SendResult>;
 
   /**
-   * Valida la firma de un webhook entrante. Cada provider tiene su mecanismo.
-   * Devuelve true si la firma es válida.
+   * Valida la firma HMAC del webhook entrante.
+   * @param rawBody  body crudo, sin parsear (necesario para que el hash coincida)
+   * @param signature header de firma (ej: X-Hub-Signature-256 en WhatsApp)
    */
-  verifyWebhookSignature(rawBody: string, signature: string): boolean;
+  verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean;
 
   /**
-   * Parsea el payload crudo de un webhook a InboundMessage[].
-   * Un webhook puede traer múltiples mensajes.
+   * Parsea el payload crudo de un webhook a ParsedInboundMessage[].
+   * Es PURO (no toca DB). Un webhook puede traer múltiples mensajes.
    */
-  parseInboundWebhook(payload: unknown): InboundMessage[];
+  parseInboundWebhook(payload: unknown): ParsedInboundMessage[];
 
   isHealthy(): Promise<boolean>;
 }

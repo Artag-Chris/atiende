@@ -1,4 +1,7 @@
+import { Logger } from '@nestjs/common';
 import type { Env } from './env';
+
+const logger = new Logger('AIConfig');
 
 /**
  * Configuración centralizada de IA (LLM providers, prompt caching, agente).
@@ -214,6 +217,8 @@ export interface CostBreakdown {
   totalUsd: number;
 }
 
+const warnedUnknownModels = new Set<string>();
+
 export function calculateCost(
   model: string,
   usage: {
@@ -226,20 +231,25 @@ export function calculateCost(
 ): CostBreakdown {
   const pricing = MODEL_PRICING[model];
   if (!pricing) {
-    // Modelo desconocido — devolvemos costos en 0 pero logueamos para que
-    // el operador detecte y agregue el modelo a MODEL_PRICING.
+    // Modelo desconocido — devolvemos costos en 0 PERO logueamos warning una
+    // sola vez por modelo (evita spam). El operador debe agregar el pricing
+    // a MODEL_PRICING. Sin esto, métricas de costo silenciosamente serían 0.
+    if (!warnedUnknownModels.has(model)) {
+      warnedUnknownModels.add(model);
+      logger.warn(
+        `Unknown model "${model}" — cost tracking will report 0 until added to MODEL_PRICING. ` +
+          `Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`,
+      );
+    }
     return { inputUsd: 0, outputUsd: 0, cacheWriteUsd: 0, cacheReadUsd: 0, totalUsd: 0 };
   }
 
-  const cacheWriteRate =
-    cacheTtl === '1h' ? pricing.cacheWrite1hPer1M : pricing.cacheWrite5mPer1M;
+  const cacheWriteRate = cacheTtl === '1h' ? pricing.cacheWrite1hPer1M : pricing.cacheWrite5mPer1M;
 
   const inputUsd = (usage.inputTokens / 1_000_000) * pricing.inputPer1M;
   const outputUsd = (usage.outputTokens / 1_000_000) * pricing.outputPer1M;
-  const cacheWriteUsd =
-    (usage.cacheCreationInputTokens / 1_000_000) * cacheWriteRate;
-  const cacheReadUsd =
-    (usage.cacheReadInputTokens / 1_000_000) * pricing.cacheReadPer1M;
+  const cacheWriteUsd = (usage.cacheCreationInputTokens / 1_000_000) * cacheWriteRate;
+  const cacheReadUsd = (usage.cacheReadInputTokens / 1_000_000) * pricing.cacheReadPer1M;
 
   const totalUsd = inputUsd + outputUsd + cacheWriteUsd + cacheReadUsd;
   return { inputUsd, outputUsd, cacheWriteUsd, cacheReadUsd, totalUsd };

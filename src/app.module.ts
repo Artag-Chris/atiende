@@ -2,10 +2,15 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { CoreModule } from './core/core.module';
-import { FEATURES } from './core/tokens';
+import {
+  AI_CONFIG_TOKEN,
+  CIRCUIT_BREAKER_CONFIG_TOKEN,
+  ENV_TOKEN,
+  FEATURES_TOKEN,
+} from './core/tokens';
 import { buildFeatures, type Features } from './config/features';
 import { loadEnv, type Env } from './config/env';
-import { buildAIConfig } from './config/ai.config';
+import { buildAIConfig, buildCircuitBreakerConfig } from './config/ai.config';
 import { resolveModules } from './config/module-registry';
 
 /**
@@ -14,14 +19,11 @@ import { resolveModules } from './config/module-registry';
  *
  * Ver docs/01_ARCHITECTURE.md §11.4.
  */
-
-export const ENV_TOKEN = Symbol('ENV');
-export const AI_CONFIG = Symbol('AI_CONFIG');
-
 @Module({})
 export class AppModule {
   static forRoot(env: Env, features: Features): DynamicModule {
     const aiConfig = buildAIConfig(env);
+    const circuitBreakerConfig = buildCircuitBreakerConfig(env);
 
     return {
       module: AppModule,
@@ -32,22 +34,22 @@ export class AppModule {
       ],
       providers: [
         { provide: ENV_TOKEN, useValue: env },
-        { provide: FEATURES, useValue: features },
-        { provide: AI_CONFIG, useValue: aiConfig },
+        { provide: FEATURES_TOKEN, useValue: features },
+        { provide: AI_CONFIG_TOKEN, useValue: aiConfig },
+        { provide: CIRCUIT_BREAKER_CONFIG_TOKEN, useValue: circuitBreakerConfig },
       ],
-      exports: [ENV_TOKEN, FEATURES, AI_CONFIG],
+      exports: [ENV_TOKEN, FEATURES_TOKEN, AI_CONFIG_TOKEN, CIRCUIT_BREAKER_CONFIG_TOKEN],
     };
   }
 
   /**
-   * Variante para tests: arma env+features con defaults sensatos y permite
-   * overrides parciales.
+   * Variante para tests. Acepta env+features explícitos para que los tests no
+   * dependan de `process.env`. Si no se pasan, intenta loadEnv() (útil cuando
+   * el test setup ya cargó un .env.test).
    */
-  static forTest(envOverrides?: Partial<Env>, featuresOverrides?: Partial<Features>): DynamicModule {
-    // Para tests, levantamos un env mínimo viable y permitimos override.
-    const baseEnv = loadEnv();
-    const env: Env = { ...baseEnv, ...envOverrides };
-    const features: Features = { ...buildFeatures(env), ...featuresOverrides };
-    return AppModule.forRoot(env, features);
+  static forTest(env?: Env, features?: Features): DynamicModule {
+    const resolvedEnv = env ?? loadEnv();
+    const resolvedFeatures = features ?? buildFeatures(resolvedEnv);
+    return AppModule.forRoot(resolvedEnv, resolvedFeatures);
   }
 }

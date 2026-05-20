@@ -39,7 +39,9 @@ model Business {
   orders            Order[]
   inboundMessages   InboundMessage[]
   responseCache     ResponseCache[]
+  agentRuns         AgentRun[]
 
+  @@index([archivedAt])
   @@map("businesses")
 }
 
@@ -97,26 +99,39 @@ enum ConversationStatus {
   @@map("conversation_status")
 }
 
+enum Channel {
+  WHATSAPP
+  WEB_CHAT
+  TELEGRAM
+
+  @@map("channel")
+}
+
 /// Una conversación entre un cliente final (identificado por su número) y un business.
+/// Único por (business_id, customer_identifier, channel) — un cliente puede tener
+/// conversaciones separadas en distintos canales con el mismo business.
 model Conversation {
-  id              String             @id @default(uuid()) @db.Uuid
-  businessId      String             @map("business_id") @db.Uuid
-  customerPhone   String             @map("customer_phone")
-  status          ConversationStatus @default(ACTIVE)
+  id                 String             @id @default(uuid()) @db.Uuid
+  businessId         String             @map("business_id") @db.Uuid
+  /// Canal por el que entra/sale la conversación.
+  channel            Channel            @default(WHATSAPP)
+  /// Identificador del cliente en ese canal (teléfono en WhatsApp, sessionId en webchat, etc.).
+  customerIdentifier String             @map("customer_identifier")
+  status             ConversationStatus @default(ACTIVE)
   /// Resumen generado por compaction cuando el historial crece.
-  summaryText     String?            @map("summary_text")
-  lastMessageAt   DateTime?          @map("last_message_at")
-  escalatedAt     DateTime?          @map("escalated_at")
-  escalationReason String?           @map("escalation_reason")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  summaryText        String?            @map("summary_text")
+  lastMessageAt      DateTime?          @map("last_message_at")
+  escalatedAt        DateTime?          @map("escalated_at")
+  escalationReason   String?            @map("escalation_reason")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
   business  Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
   messages  Message[]
   agentRuns AgentRun[]
   orders    Order[]
 
-  @@unique([businessId, customerPhone])
+  @@unique([businessId, channel, customerIdentifier])
   @@index([businessId, status, lastMessageAt])
   @@map("conversations")
 }
@@ -171,29 +186,42 @@ model InboundMessage {
 // TELEMETRÍA Y EVALS
 // ============================================================================
 
+enum CacheHitLayer {
+  EXACT      // capa 3 - Redis sha256
+  SEMANTIC   // capa 2 - pgvector cosine
+
+  @@map("cache_hit_layer")
+}
+
 /// Cada ejecución del agente (un turno). Una fila por llamada al LLM.
 /// Base de las métricas de costo, latencia y calidad. Ver arquitectura §10.
+///
+/// businessId está denormalizado (también accesible vía conversation.business_id)
+/// para evitar JOINs en queries de dashboard ("costos por business este mes").
 model AgentRun {
-  id                       String   @id @default(uuid()) @db.Uuid
-  conversationId           String   @map("conversation_id") @db.Uuid
-  model                    String   // 'claude-opus-4-7', etc.
-  llmProvider              String   @map("llm_provider") // 'claude', 'openai', ...
-  latencyMs                Int      @map("latency_ms")
-  inputTokens              Int      @map("input_tokens")
-  outputTokens             Int      @map("output_tokens")
-  cacheCreationInputTokens Int      @default(0) @map("cache_creation_input_tokens")
-  cacheReadInputTokens     Int      @default(0) @map("cache_read_input_tokens")
-  costUsd                  Decimal  @db.Decimal(10, 6) @map("cost_usd")
+  id                       String         @id @default(uuid()) @db.Uuid
+  businessId               String         @map("business_id") @db.Uuid
+  conversationId           String         @map("conversation_id") @db.Uuid
+  model                    String         // 'claude-opus-4-7', etc.
+  llmProvider              String         @map("llm_provider") // 'claude', 'openai', ...
+  latencyMs                Int            @map("latency_ms")
+  inputTokens              Int            @map("input_tokens")
+  outputTokens             Int            @map("output_tokens")
+  cacheCreationInputTokens Int            @default(0) @map("cache_creation_input_tokens")
+  cacheReadInputTokens     Int            @default(0) @map("cache_read_input_tokens")
+  costUsd                  Decimal        @db.Decimal(10, 6) @map("cost_usd")
   /// Tool calls de este turno: array de { name, input, latencyMs, success }.
-  toolCalls                Json     @default("[]") @map("tool_calls_jsonb")
-  stopReason               String?  @map("stop_reason")
-  /// Si el turno usó cache (response cache), nivel: 'exact' | 'semantic' | null.
-  cacheHitLayer            String?  @map("cache_hit_layer")
-  cacheHitSimilarity       Decimal? @db.Decimal(5, 4) @map("cache_hit_similarity")
-  createdAt                DateTime @default(now()) @map("created_at")
+  toolCalls                Json           @default("[]") @map("tool_calls_jsonb")
+  stopReason               String?        @map("stop_reason")
+  /// Si el turno usó cache (response cache), qué capa.
+  cacheHitLayer            CacheHitLayer? @map("cache_hit_layer_enum")
+  cacheHitSimilarity       Decimal?       @db.Decimal(5, 4) @map("cache_hit_similarity")
+  createdAt                DateTime       @default(now()) @map("created_at")
 
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
+  @@index([businessId, createdAt])
   @@index([conversationId, createdAt])
   @@index([createdAt])
   @@map("agent_runs")
@@ -219,6 +247,8 @@ model Order {
   /// Info del cliente: { name, phone, address, deliveryNotes }.
   customerInfo   Json        @map("customer_info_jsonb")
   /// Items: [{ productId, name, quantity, unitPrice }].
+  /// NOTA tech-debt: en v2 podríamos modelar OrderItem como tabla separada
+  /// para analytics ("producto más ordenado"). Ver docs/AUDIT.md.
   items          Json        @map("items_jsonb")
   total          Decimal     @db.Decimal(12, 2)
   status         OrderStatus @default(PENDING)
@@ -226,9 +256,10 @@ model Order {
   updatedAt      DateTime    @updatedAt @map("updated_at")
 
   business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  conversation Conversation @relation(fields: [conversationId], references: [id])
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
 
   @@index([businessId, status, createdAt])
+  @@index([conversationId])
   @@map("orders")
 }
 
@@ -239,22 +270,32 @@ model Order {
 /// Cache de respuestas indexado por embedding del query.
 /// Permite reutilizar respuestas cuando un cliente hace una pregunta
 /// semánticamente similar a una previa. Ver arquitectura §12.
+///
+/// CRÍTICO: embeddingModel se guarda para invalidación al cambiar de modelo.
+/// Si el embedding model cambia, los vectores viejos quedan en otro espacio
+/// y los matches se vuelven basura. El service debe filtrar por embeddingModel.
 model ResponseCache {
-  id            String                       @id @default(uuid()) @db.Uuid
-  businessId    String                       @map("business_id") @db.Uuid
-  queryText     String                       @map("query_text")
-  queryEmbedding Unsupported("vector(1536)") @map("query_embedding")
-  responseText  String                       @map("response_text")
+  id             String                       @id @default(uuid()) @db.Uuid
+  businessId     String                       @map("business_id") @db.Uuid
+  /// Modelo usado para generar este embedding. Ej: 'text-embedding-3-small'.
+  embeddingModel String                       @map("embedding_model")
+  /// Query del cliente. Considerar: si puede contener PII, hashear antes.
+  /// Por ahora plaintext porque queries cacheables son no-personales (FAQ, etc.)
+  /// y la safety rail `hasPersonalInfo` ya bypasea el cache cuando hay PII.
+  queryText      String                       @map("query_text")
+  queryEmbedding Unsupported("vector(1536)")  @map("query_embedding")
+  responseText   String                       @map("response_text")
   /// Si la respuesta involucró tools, guardamos cuáles (para invalidación selectiva).
-  toolCalls     Json                         @default("[]") @map("tool_calls_jsonb")
-  hitCount      Int                          @default(0) @map("hit_count")
-  lastUsedAt    DateTime?                    @map("last_used_at")
-  expiresAt     DateTime                     @map("expires_at")
-  createdAt     DateTime                     @default(now()) @map("created_at")
+  toolCalls      Json                         @default("[]") @map("tool_calls_jsonb")
+  hitCount       Int                          @default(0) @map("hit_count")
+  lastUsedAt     DateTime?                    @map("last_used_at")
+  expiresAt      DateTime                     @map("expires_at")
+  createdAt      DateTime                     @default(now()) @map("created_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  @@index([businessId, expiresAt])
+  @@index([businessId, embeddingModel, expiresAt])
+  @@index([expiresAt]) // para job de cleanup
   @@map("response_cache")
 }
 
