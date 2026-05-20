@@ -1,68 +1,59 @@
-import { z } from 'zod';
+import type { Env } from './env';
 
 /**
- * Feature flags del sistema.
+ * Feature flags consolidados.
  *
- * Dos niveles:
- *  - Global (este schema): se cargan desde env vars al arranque.
- *  - Por business (en businesses.feature_overrides_jsonb): override por tenant.
+ * NO se valida con Zod aquí porque el schema lo hace env.ts. Esta función
+ * solo toma el Env validado y construye un objeto bien tipado para inyección.
  *
- * Ver docs/01_ARCHITECTURE.md §11.4 para el detalle.
+ * Dos niveles de flags (ver docs/01_ARCHITECTURE.md §11.4):
+ *  - Global: este objeto, hidratado desde env vars al boot.
+ *  - Por business: businesses.feature_overrides_jsonb, leído en runtime
+ *    por FeatureService.
  */
 
-const boolFromEnv = z
-  .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
-  .transform((v) => v === true || v === 'true' || v === '1');
+export interface Features {
+  llm: {
+    primary: 'claude' | 'openai' | 'mock';
+    fallback: 'claude' | 'openai' | 'mock' | null;
+  };
+  channels: {
+    whatsapp: boolean;
+    webChat: boolean;
+    telegram: boolean;
+  };
+  tools: {
+    catalog: boolean;
+    orders: boolean;
+    info: boolean;
+    escalation: boolean;
+  };
+  embeddings: {
+    provider: 'openai' | 'voyage';
+  };
+  ai: {
+    promptCaching: boolean;
+    compaction: boolean;
+    adaptiveThinking: boolean;
+  };
+  cache: {
+    exact: boolean;
+    semantic: boolean;
+    semanticMinSimilarity: number;
+    semanticTtlSeconds: number;
+    exactTtlSeconds: number;
+  };
+  observability: {
+    otel: boolean;
+    sentry: boolean;
+  };
+}
 
-export const FeaturesSchema = z.object({
-  llm: z.object({
-    primary: z.enum(['claude', 'openai', 'mock']).default('claude'),
-    fallback: z
-      .enum(['claude', 'openai', 'mock'])
-      .nullable()
-      .default(null),
-  }),
-  channels: z.object({
-    whatsapp: boolFromEnv.default(true),
-    webChat: boolFromEnv.default(false),
-    telegram: boolFromEnv.default(false),
-  }),
-  tools: z.object({
-    catalog: boolFromEnv.default(true),
-    orders: boolFromEnv.default(true),
-    info: boolFromEnv.default(true),
-    escalation: boolFromEnv.default(true),
-  }),
-  embeddings: z.object({
-    provider: z.enum(['openai', 'voyage']).default('openai'),
-  }),
-  ai: z.object({
-    promptCaching: boolFromEnv.default(true),
-    compaction: boolFromEnv.default(true),
-    adaptiveThinking: boolFromEnv.default(true),
-  }),
-  cache: z.object({
-    exact: boolFromEnv.default(true),
-    semantic: boolFromEnv.default(true),
-    minSimilarity: z.coerce.number().min(0).max(1).default(0.95),
-    ttlSeconds: z.coerce.number().int().positive().default(1800),
-  }),
-  observability: z.object({
-    otel: boolFromEnv.default(false),
-  }),
-});
-
-export type Features = z.infer<typeof FeaturesSchema>;
-
-/**
- * Carga features desde env vars y devuelve un objeto Features validado.
- * Las flags se nombran en env como FEATURE_<SECTION>_<NAME> en SCREAMING_SNAKE_CASE.
- */
-export function loadFeatures(env: NodeJS.ProcessEnv = process.env): Features {
-  const raw = {
+export function buildFeatures(env: Env): Features {
+  return {
     llm: {
       primary: env.FEATURE_LLM_PRIMARY,
-      fallback: env.FEATURE_LLM_FALLBACK || null,
+      fallback: env.FEATURE_LLM_FALLBACK === '' ? null : env.FEATURE_LLM_FALLBACK,
     },
     channels: {
       whatsapp: env.FEATURE_CHANNEL_WHATSAPP,
@@ -86,12 +77,13 @@ export function loadFeatures(env: NodeJS.ProcessEnv = process.env): Features {
     cache: {
       exact: env.FEATURE_CACHE_EXACT,
       semantic: env.FEATURE_CACHE_SEMANTIC,
-      minSimilarity: env.SEMANTIC_CACHE_MIN_SIMILARITY,
-      ttlSeconds: env.SEMANTIC_CACHE_TTL_SECONDS,
+      semanticMinSimilarity: env.SEMANTIC_CACHE_MIN_SIMILARITY,
+      semanticTtlSeconds: env.SEMANTIC_CACHE_TTL_SECONDS,
+      exactTtlSeconds: env.EXACT_CACHE_TTL_SECONDS,
     },
     observability: {
       otel: env.FEATURE_OTEL,
+      sentry: !!env.SENTRY_DSN,
     },
   };
-  return FeaturesSchema.parse(raw);
 }

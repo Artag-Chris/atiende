@@ -9,11 +9,14 @@ import type {
 /**
  * Hint para el adapter sobre el nivel de razonamiento deseado.
  * Cada provider lo mapea a su parámetro nativo:
- *   - Claude: output_config.effort
- *   - OpenAI: ignored or mapped to reasoning_effort (o-series only)
+ *   - Claude: output_config.effort (xhigh: Opus 4.7 only; max: Opus only)
+ *   - OpenAI: ignored o mapeado a reasoning_effort (solo o-series)
  *   - Local: ignored
+ *
+ * Trade-off provider-agnostic: si pides 'max' y el provider no lo soporta,
+ * el adapter degrada a 'high' silenciosamente.
  */
-export type Effort = 'low' | 'medium' | 'high';
+export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 export interface ChatRequest {
   systemPrompt: string;

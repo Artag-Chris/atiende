@@ -20,6 +20,7 @@ Si eres nuevo en el repo (humano o Claude Code), lee en este orden:
 2. **[docs/01_ARCHITECTURE.md](docs/01_ARCHITECTURE.md)** — diseño técnico, stack, patrones (especialmente §11 Adapter + Core/Módulos y §12 Caching multinivel y §13 Resiliencia).
 3. **[docs/02_AI_CONCEPTS.md](docs/02_AI_CONCEPTS.md)** — conceptos de IA aplicados (RAG, tool use, prompt caching, evals).
 4. **[docs/03_ROADMAP.md](docs/03_ROADMAP.md)** — plan semana a semana.
+5. **[docs/SETUP_META.md](docs/SETUP_META.md)** — clickflow para crear la app de Meta WhatsApp Business (necesario para semana 1).
 
 **La spec es la fuente de verdad.** Si vas a hacer un cambio que afecta requerimientos, el cambio empieza en la spec, no en el código.
 
@@ -79,9 +80,11 @@ atiende/
 │   │   ├── cache/{semantic,exact}/
 │   │   └── queue/bullmq/
 │   ├── config/
-│   │   ├── env.ts                  # validación de env vars con Zod
-│   │   ├── features.ts             # feature flag schema
-│   │   └── module-registry.ts      # decide qué módulos cargar
+│   │   ├── env.ts                  # validación de env vars con Zod (fuente de verdad)
+│   │   ├── features.ts             # feature flags consolidadas
+│   │   ├── ai.config.ts            # estrategia LLM (modelos, prompt caching, fallback, costos)
+│   │   ├── queue.config.ts         # BullMQ: nombres de colas, concurrencia, retención, backoff
+│   │   └── module-registry.ts      # decide qué módulos cargar según features
 │   ├── app.module.ts
 │   └── main.ts
 ├── test/                           # tests end-to-end

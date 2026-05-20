@@ -13,3 +13,4 @@ export const EMBEDDING_PROVIDER = Symbol('EMBEDDING_PROVIDER');
 export const RESPONSE_CACHE = Symbol('RESPONSE_CACHE');
 export const EXACT_CACHE = Symbol('EXACT_CACHE');
 export const FEATURES = Symbol('FEATURES');
+export const TOOL_MODULES = Symbol('TOOL_MODULES');
