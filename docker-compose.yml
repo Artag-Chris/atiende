@@ -1,0 +1,51 @@
+# Atiende - Local development infrastructure
+# Postgres 16 with pgvector extension + Redis 7
+#
+# Usage:
+#   npm run docker:up        # start in background
+#   npm run docker:logs      # tail logs
+#   npm run docker:down      # stop and remove containers
+#
+# Data persists in named volumes (atiende_pgdata, atiende_redisdata).
+# To wipe data: docker compose down -v
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: atiende-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atiende
+      POSTGRES_PASSWORD: atiende_dev
+      POSTGRES_DB: atiende
+    ports:
+      - "5432:5432"
+    volumes:
+      - atiende_pgdata:/var/lib/postgresql/data
+      - ./prisma/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atiende -d atiende"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: atiende-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - atiende_redisdata:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  atiende_pgdata:
+    name: atiende_pgdata
+  atiende_redisdata:
+    name: atiende_redisdata
