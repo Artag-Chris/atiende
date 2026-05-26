@@ -32,6 +32,10 @@ export const SEMANTIC_CACHE_TOKEN = Symbol('SEMANTIC_CACHE');
 // ----- Tools (multi-binding: el agente recibe todas las habilitadas) ---------
 export const TOOL_MODULES_TOKEN = Symbol('TOOL_MODULES');
 
+// ----- Knowledge ingestion (multi-binding de extractors según MIME) ----------
+export const DOCUMENT_EXTRACTORS_TOKEN = Symbol('DOCUMENT_EXTRACTORS');
+export const CHUNKER_TOKEN = Symbol('CHUNKER');
+
 // ============================================================================
 // DEPRECATED — mantener temporalmente para no romper imports en módulos viejos.
 // Eliminar tras migrar todos los consumers a los `_TOKEN` aliases.

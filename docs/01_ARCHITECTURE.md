@@ -1230,3 +1230,181 @@ Alertas:
 - **Fallback estático + escalamiento** como última línea de defensa para casos extremos.
 - **Decisión consciente:** preferimos calidad degradada con sistema arriba a calidad perfecta con sistema caído.
 - **Estimado:** menos del 5% del tráfico llegaría a degradación fuerte en una caída total de Anthropic. La mayoría sigue funcionando.
+
+---
+
+## 14. Ingesta de conocimiento (PDFs, FAQs, políticas)
+
+> Esta sección documenta cómo se cargan datos no-estructurados al sistema para que el agente pueda consultarlos. Complementa el catálogo (`Product`/`ProductEmbedding`) con `KnowledgeDocument`/`KnowledgeChunk`.
+
+### 14.1 Por qué un sistema separado del catálogo
+
+El catálogo es **estructurado**: cada producto tiene precio, stock, foto, categoría — atributos discretos. Una fila = una unidad de retrieval.
+
+Los documentos del business son **no-estructurados**: una política de devolución de 5 páginas, un manual de uso, un FAQ libre. No tienen "filas", tienen párrafos, secciones, páginas. Hay que **partir** el texto en chunks digeribles antes de embedding (un PDF de 30K tokens no cabe en un solo vector).
+
+Diferencias clave:
+
+| | Catálogo (`products`) | Conocimiento (`knowledge_documents`) |
+|---|---|---|
+| Unidad | Producto (estructurado) | Chunk (texto libre) |
+| Tabla embedding | `product_embeddings` (1:1 con producto) | `knowledge_chunks` (N por documento) |
+| Tool del agente | `search_catalog` → devuelve productos con precio/stock | `search_knowledge` → devuelve chunks de texto con cita (pág, sección) |
+| Update | Producto se edita item-por-item | Documento se re-sube entero (re-extract + re-chunk + re-embed) |
+| Fuentes | CSV/Excel/form/API tienda | PDF, Word, Markdown, form FAQ, URL |
+
+### 14.2 Pipeline de ingesta
+
+```
+Business sube archivo en dashboard
+        │
+        ▼
+POST /api/businesses/:id/knowledge (multipart upload)
+        │
+        ▼
+┌─ Controller ────────────────────────────────────────┐
+│  1. Valida MIME type y tamaño (KNOWLEDGE_MAX_FILE_SIZE_MB)
+│  2. Hash sha256 del buffer
+│  3. Upsert KnowledgeDocument(business_id, source)
+│     - Si mismo hash → 200 (no-op)
+│     - Si nuevo o cambió → status=PENDING, enqueue job
+└─────────────────────────────────────────────────────┘
+        │
+        ▼ (BullMQ KNOWLEDGE_INDEXING queue)
+┌─ KnowledgeIndexer worker ───────────────────────────┐
+│  1. status=EXTRACTING                                 │
+│     DocumentExtractorRegistry selecciona extractor    │
+│     por MIME → DocumentExtractorPort.extract(buffer)  │
+│     → ExtractedDocument { fullText, segments }        │
+│                                                       │
+│  2. status=CHUNKING                                   │
+│     ChunkerPort.chunk(segments) → Chunk[]             │
+│     (FixedSizeChunker default: 500 tokens, 50 overlap)│
+│                                                       │
+│  3. status=EMBEDDING                                  │
+│     EmbeddingProviderPort.embedBatch(texts)           │
+│     en lotes de EMBEDDING_BATCH_SIZE (100)            │
+│                                                       │
+│  4. Persistencia transaccional:                       │
+│     - Soft-delete chunks viejos del mismo documento   │
+│       (active=false en knowledge_chunks via cascade)  │
+│     - INSERT chunks nuevos                            │
+│     - UPDATE KnowledgeDocument status=INDEXED,        │
+│       indexed_at=now(), chunk_count=N                 │
+│                                                       │
+│  5. Enqueue cache invalidation:                       │
+│     CACHE_INVALIDATION { businessId, scope: 'faq' }   │
+│     (limpia response cache que pudo haber respondido  │
+│     con info vieja)                                   │
+│                                                       │
+│  6. Notifica al dashboard (websocket / poll)          │
+└─────────────────────────────────────────────────────┘
+        │
+        ▼
+Agente puede consultar desde el siguiente turno
+```
+
+### 14.3 Schema (ya en `prisma/schema.prisma`)
+
+- **`KnowledgeDocument`** — un archivo / fuente cargada por el business. Unique por `(businessId, source)`.
+- **`KnowledgeChunk`** — fragmento individual con embedding `vector(1536)`. `businessId` y `kind` denormalizados para queries multi-tenant sin JOIN.
+- **`KnowledgeKind` enum** — `FAQ | POLICY | PDF_CATALOG | MANUAL | NOTES | OTHER`.
+- **`KnowledgeStatus` enum** — `PENDING | EXTRACTING | CHUNKING | EMBEDDING | INDEXED | FAILED`.
+
+### 14.4 Ports (en `src/core/ports/`)
+
+```typescript
+// DocumentExtractorPort — convierte file binario en texto estructurado
+interface DocumentExtractorPort {
+  readonly name: string;
+  readonly supportedMimeTypes: readonly string[];
+  canHandle(mimeType: string, filename: string): boolean;
+  extract(buffer: Buffer, filename: string): Promise<ExtractedDocument>;
+}
+
+// ChunkerPort — toma segmentos del extractor y los parte/junta en chunks
+interface ChunkerPort {
+  readonly name: string;
+  readonly maxTokensPerChunk: number;
+  readonly overlapTokens: number;
+  chunk(segments: DocumentSegment[]): Chunk[];
+}
+```
+
+`EmbeddingProviderPort` ya existe — se reusa el de catálogo (mismo OpenAI text-embedding-3-small).
+
+### 14.5 Adapters previstos (Semana 4)
+
+| Adapter | MIME types | Librería | Notas |
+|---|---|---|---|
+| `pdf-text` | `application/pdf` | `pdf-parse` (ya en deps) | PDFs con texto seleccionable (90% de casos) |
+| `csv` | `text/csv` | `csv-parse` | Catálogo en CSV, 1 fila por chunk |
+| `excel` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `exceljs` | Catálogo en Excel |
+| `markdown` | `text/markdown`, `text/plain` | nativo | Trivial: text-as-is |
+| `form` | (sintético) | — | FAQs/políticas escritas en el dashboard |
+
+**Out of scope v1 (defer a v2):**
+
+- `pdf-ocr` con tesseract.js → PDFs escaneados (imágenes). Detección en v1: si `pdf-parse` devuelve < 100 chars en un PDF de N páginas, status=`FAILED` con mensaje "PDF escaneado, OCR llega en v2".
+- `claude-vision` → PDFs complejos con tablas/imágenes. Premium feature.
+- Connectors `notion` / `google-docs` / `shopify` → ingesta automática desde apps SaaS.
+
+### 14.6 La tool `search_knowledge` (Semana 4)
+
+```typescript
+// Pseudocódigo — implementación real en src/modules/tools/knowledge/
+const searchKnowledge = betaZodTool({
+  name: 'search_knowledge',
+  description: `Busca en los documentos del negocio (políticas, FAQs, manuales, PDFs).
+    Usa esta tool cuando el cliente pregunte sobre políticas, horarios extendidos,
+    términos y condiciones, garantías, devoluciones, o información detallada del
+    negocio que NO sea un producto del catálogo.
+    Para preguntas sobre productos específicos usa search_catalog.`,
+  inputSchema: z.object({
+    query: z.string().describe('La pregunta del cliente, en lenguaje natural'),
+    kind: z.enum(['FAQ', 'POLICY', 'MANUAL', 'PDF_CATALOG', 'NOTES']).optional()
+      .describe('Filtrar por tipo de documento si se sabe (opcional)'),
+  }),
+  run: async ({ query, kind }, ctx) => {
+    const embedding = await embedder.embed(query);
+    const chunks = await db.$queryRaw`
+      SELECT kc.text, kc.page_number, kd.title, kd.kind,
+             1 - (kc.embedding <=> ${embedding}::vector) AS similarity
+      FROM knowledge_chunks kc
+      JOIN knowledge_documents kd ON kd.id = kc.document_id
+      WHERE kc.business_id = ${ctx.businessId}
+        AND kd.active = true
+        AND kc.embedding_model = ${currentEmbeddingModel}
+        ${kind ? db.$queryRaw`AND kc.kind = ${kind}::knowledge_kind` : db.$queryRaw``}
+        AND 1 - (kc.embedding <=> ${embedding}::vector) > ${RAG_MIN_SIMILARITY}
+      ORDER BY kc.embedding <=> ${embedding}::vector
+      LIMIT ${RAG_TOP_K}
+    `;
+    return JSON.stringify(chunks.map(c => ({
+      text: c.text,
+      source: `${c.title}${c.page_number ? ` (pág. ${c.page_number})` : ''}`,
+      similarity: c.similarity,
+    })));
+  },
+});
+```
+
+### 14.7 Costos
+
+| Operación | Tokens / unidad | Costo |
+|---|---|---|
+| Extract PDF texto (50 págs) | — | gratis (CPU local) |
+| Extract PDF OCR (50 págs) | — | gratis (CPU local, lento ~5min) |
+| Embedding (1 chunk de 500 tokens) | 500 | $0.00001 con OpenAI small |
+| Indexar PDF de 50 págs (~60 chunks) | 30K | **$0.0006** |
+| Indexar catálogo de 1000 productos | 200K | **$0.004** |
+| Búsqueda (`search_knowledge` por turno) | ~30 tokens (query embedding) | $0.0000006 |
+
+**Conclusión:** ingesta es virtualmente gratis. La cuenta de embeddings de un business típico sería < $0.10/mes incluso re-indexando todo el catálogo a diario.
+
+### 14.8 Implementación en el roadmap
+
+- **Semana 1-3:** schema ya creado (este commit). Tool `search_knowledge` definida en spec. No se implementa código aún.
+- **Semana 4:** implementar adapters (`pdf-text`, `csv`, `excel`, `markdown`, `form`), `FixedSizeChunker`, `KnowledgeIndexer` worker, UI dashboard de upload, tool `search_knowledge`.
+- **Semana 5:** evals que cubran queries que deben usar `search_knowledge` vs `search_catalog` vs ambos.
+- **v2:** OCR (tesseract.js), Claude vision para PDFs complejos, connectors Notion/Shopify.

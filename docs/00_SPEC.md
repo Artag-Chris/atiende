@@ -101,10 +101,11 @@ Numerados. Testeables. Cualquier feature nueva tiene que tener su FR.
 ### Agente (Tool Use)
 
 - **FR-10:** El agente tiene acceso a las siguientes herramientas (tools):
-  - `search_catalog(query)` — búsqueda semántica del catálogo
+  - `search_catalog(query)` — búsqueda semántica del catálogo de productos
   - `get_product(product_id)` — detalles de un producto específico
+  - `search_knowledge(query, kind?)` — búsqueda semántica en documentos del business (FAQs, políticas, PDFs, manuales) — ver §FR-22+
   - `create_order(items, customer_info, delivery_address)` — crea una orden en estado pendiente
-  - `get_business_info(topic)` — horarios, ubicación, métodos de pago, políticas
+  - `get_business_info(topic)` — horarios, ubicación, métodos de pago, políticas básicas configuradas en settings
   - `escalate_to_human(reason)` — marca la conversación como pendiente de humano y notifica
 - **FR-11:** El agente decide cuándo escalar basado en: (a) queja explícita, (b) solicitud directa de hablar con humano, (c) tarea fuera de su alcance, (d) más de 3 turnos sin progreso.
 
@@ -123,6 +124,16 @@ Numerados. Testeables. Cualquier feature nueva tiene que tener su FR.
 - **FR-14c:** El cache semántico (capa 2) tiene safety rails no negociables: scope por `business_id`, bypass total para tools de estado (`create_order`, `escalate_to_human`), bypass si hay historial > 1 mensaje, bypass si el query contiene PII, TTL ≤ 30min, feature flag por business.
 - **FR-14d:** El sistema invalida el cache semántico de un business cuando se actualiza su catálogo o FAQ.
 - **FR-14e:** El sistema expone una métrica "Ahorro Atiende" en el dashboard mostrando costo evitado por las capas de cache vs un sistema sin cache.
+
+### Knowledge ingestion (documentos no-estructurados del business)
+
+Complementa el catálogo (que es estructurado: productos con precio/stock) con documentos no-estructurados (FAQs, políticas, PDFs, manuales). Diseño completo en [01_ARCHITECTURE.md §14](../docs/01_ARCHITECTURE.md#14-ingesta-de-conocimiento-pdfs-faqs-políticas).
+
+- **FR-22:** El sistema permite al business cargar documentos de conocimiento desde el dashboard. Tipos soportados v1: CSV, Excel (`.xlsx`/`.xls`), PDF con texto seleccionable, formularios web (FAQs).
+- **FR-23:** La ingesta es asíncrona (BullMQ `KNOWLEDGE_INDEXING`). Pipeline: extract → chunk → embed → store. Status visible en dashboard: `PENDING → EXTRACTING → CHUNKING → EMBEDDING → INDEXED | FAILED`.
+- **FR-24:** El agente tiene la tool `search_knowledge(query, kind?)` que retorna los top-K chunks más similares al query (cosine > `RAG_MIN_SIMILARITY`), filtrables por `KnowledgeKind` (`FAQ` / `POLICY` / `PDF_CATALOG` / `MANUAL` / `NOTES`).
+- **FR-25:** Re-subir un documento con el mismo `source` actualiza la entrada existente. Si el `sourceHash` no cambió, no se re-indexa (idempotente). Si cambió, los chunks viejos quedan `active=false` y se generan los nuevos. La response cache del business se invalida automáticamente tras re-indexar.
+- **FR-26:** Tamaño máximo de archivo: `KNOWLEDGE_MAX_FILE_SIZE_MB` (default 20 MB). PDFs escaneados (imágenes sin texto) son **out-of-scope v1** — se detectan y se marcan `FAILED` con mensaje claro. OCR llega en v2.
 
 ### Multi-tenancy
 

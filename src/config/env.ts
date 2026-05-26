@@ -116,6 +116,12 @@ export const EnvSchema = z.object({
   RAG_MIN_SIMILARITY: z.coerce.number().min(0).max(1).default(0.6),
   EMBEDDING_BATCH_SIZE: z.coerce.number().int().positive().default(100),
 
+  // Chunking (para ingesta de PDFs, FAQs, manuales — ver knowledge_documents).
+  CHUNK_MAX_TOKENS: z.coerce.number().int().positive().default(500),
+  CHUNK_OVERLAP_TOKENS: z.coerce.number().int().min(0).default(50),
+  /** Tamaño máximo de archivo subido para ingesta de conocimiento (MB). */
+  KNOWLEDGE_MAX_FILE_SIZE_MB: z.coerce.number().int().positive().default(20),
+
   // ============================================================
   // 11. RESPONSE CACHING
   // ============================================================
@@ -143,6 +149,7 @@ export const EnvSchema = z.object({
   BULLMQ_AGENT_CONCURRENCY: z.coerce.number().int().positive().default(4),
   BULLMQ_OUTBOUND_CONCURRENCY: z.coerce.number().int().positive().default(20),
   BULLMQ_INDEXING_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  BULLMQ_KNOWLEDGE_INDEXING_CONCURRENCY: z.coerce.number().int().positive().default(2),
   BULLMQ_DEFAULT_ATTEMPTS: z.coerce.number().int().positive().default(3),
   BULLMQ_BACKOFF_INITIAL_MS: z.coerce.number().int().positive().default(1000),
   BULLMQ_KEEP_COMPLETED: z.coerce.number().int().min(0).default(1000),
@@ -161,6 +168,7 @@ export const EnvSchema = z.object({
   FEATURE_CHANNEL_WEB_CHAT: boolFromEnv.default(false),
   FEATURE_CHANNEL_TELEGRAM: boolFromEnv.default(false),
   FEATURE_TOOL_CATALOG: boolFromEnv.default(true),
+  FEATURE_TOOL_KNOWLEDGE_SEARCH: boolFromEnv.default(true),
   FEATURE_TOOL_ORDERS: boolFromEnv.default(true),
   FEATURE_TOOL_INFO: boolFromEnv.default(true),
   FEATURE_TOOL_ESCALATION: boolFromEnv.default(true),

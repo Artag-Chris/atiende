@@ -30,8 +30,10 @@ export const QUEUE_NAMES = {
   AGENT_RUN: 'agent-run',
   /** Envío de mensajes salientes a Meta WhatsApp API. */
   OUTBOUND_MESSAGE: 'outbound-message',
-  /** Indexación de catálogo: generar embeddings y guardar. */
+  /** Indexación de catálogo: generar embeddings de productos. */
   CATALOG_INDEXING: 'catalog-indexing',
+  /** Indexación de documentos de conocimiento (PDFs, FAQs, políticas). */
+  KNOWLEDGE_INDEXING: 'knowledge-indexing',
   /** Invalidación de cache (cuando se actualiza catálogo/FAQ). */
   CACHE_INVALIDATION: 'cache-invalidation',
   /** Notificaciones al business (escalamientos, alertas). */
@@ -131,6 +133,8 @@ function workerConcurrencyFor(queueName: QueueName, env: Env): number {
       return env.BULLMQ_OUTBOUND_CONCURRENCY;
     case QUEUE_NAMES.CATALOG_INDEXING:
       return env.BULLMQ_INDEXING_CONCURRENCY;
+    case QUEUE_NAMES.KNOWLEDGE_INDEXING:
+      return env.BULLMQ_KNOWLEDGE_INDEXING_CONCURRENCY;
     case QUEUE_NAMES.CACHE_INVALIDATION:
       return 4;
     case QUEUE_NAMES.NOTIFICATION:
@@ -209,6 +213,17 @@ export interface CatalogIndexingJobData {
   businessId: string;
   /** IDs específicos a re-indexar; si undefined, todo el catálogo del business. */
   productIds?: string[];
+}
+
+export interface KnowledgeIndexingJobData {
+  /** ID del KnowledgeDocument en DB (con status=PENDING). */
+  knowledgeDocumentId: string;
+  businessId: string;
+  /**
+   * Si true, soft-deletea (active=false) los chunks viejos del mismo source
+   * antes de indexar los nuevos. Default true para re-uploads del mismo PDF.
+   */
+  replaceExisting?: boolean;
 }
 
 export interface CacheInvalidationJobData {

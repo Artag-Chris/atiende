@@ -24,6 +24,7 @@ export interface Features {
   };
   tools: {
     catalog: boolean;
+    knowledgeSearch: boolean;
     orders: boolean;
     info: boolean;
     escalation: boolean;
@@ -62,6 +63,7 @@ export function buildFeatures(env: Env): Features {
     },
     tools: {
       catalog: env.FEATURE_TOOL_CATALOG,
+      knowledgeSearch: env.FEATURE_TOOL_KNOWLEDGE_SEARCH,
       orders: env.FEATURE_TOOL_ORDERS,
       info: env.FEATURE_TOOL_INFO,
       escalation: env.FEATURE_TOOL_ESCALATION,

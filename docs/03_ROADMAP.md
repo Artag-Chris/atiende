@@ -108,9 +108,9 @@
 
 ---
 
-## Semana 4 — Multi-tenant + Orders + Dashboard básico + Exact cache (2026-06-11 → 2026-06-17)
+## Semana 4 — Multi-tenant + Orders + Dashboard + Knowledge ingestion + Exact cache (2026-06-11 → 2026-06-17)
 
-**Objetivo:** sistema soporta múltiples businesses; agente crea órdenes; dashboard web mínimo; cache exacto operativo.
+**Objetivo:** sistema soporta múltiples businesses; agente crea órdenes; dashboard web mínimo; cache exacto operativo; **knowledge ingestion funcional (FAQs, PDFs, políticas)**.
 
 ### Entregables
 
@@ -118,11 +118,18 @@
 - [ ] **Tool `create_order`** funcional — crea orden en estado pendiente, devuelve ID.
 - [ ] **Onboarding manual de business:** seeder/CLI para crear un business nuevo con su catálogo.
 - [ ] **Exact response cache (capa 3)** en Redis con BullMQ ya integrado — barato de agregar (key = `sha256(query+businessId)`, TTL 30min).
+- [ ] **Knowledge ingestion (FR-22..26, arch §14):**
+  - `DocumentExtractorPort` + adapters: `pdf-text` (pdf-parse), `csv`, `excel`, `markdown`, `form`.
+  - `ChunkerPort` + `FixedSizeChunker` (500 tokens, 50 overlap).
+  - `KnowledgeIndexer` worker en queue `KNOWLEDGE_INDEXING`.
+  - Tool `search_knowledge(query, kind?)` en `src/modules/tools/knowledge/`.
+  - Endpoint `POST /api/businesses/:id/knowledge` para upload desde dashboard.
 - [ ] **Dashboard Next.js v0:**
   - Login con magic link.
   - Lista de conversaciones del business.
   - Detalle de conversación.
   - Métricas básicas (mensajes hoy, costo hoy).
+  - **Sección "Conocimiento"** — upload de PDFs / FAQs / políticas con status visible (`PENDING → INDEXED | FAILED`).
 - [ ] **Notificación de escalamiento:** cuando `escalate_to_human` se llama, dashboard muestra alerta + opcionalmente email.
 
 ### AI-driven dev

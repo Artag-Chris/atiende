@@ -19,27 +19,28 @@ datasource db {
 /// Un business es un tenant. Cada uno tiene su propio número de WhatsApp,
 /// catálogo, configuración y feature overrides.
 model Business {
-  id                     String   @id @default(uuid()) @db.Uuid
+  id                     String    @id @default(uuid()) @db.Uuid
   name                   String
-  whatsappPhoneId        String   @unique @map("whatsapp_phone_id")
+  whatsappPhoneId        String    @unique @map("whatsapp_phone_id")
   /// Token de Meta cifrado con la ENCRYPTION_MASTER_KEY (AES-256-GCM).
-  whatsappTokenEncrypted String   @map("whatsapp_token_encrypted")
+  whatsappTokenEncrypted String    @map("whatsapp_token_encrypted")
   /// Tono, personalidad, instrucciones extra inyectadas al system prompt.
-  systemPromptExtras     String?  @map("system_prompt_extras")
+  systemPromptExtras     String?   @map("system_prompt_extras")
   /// Config arbitraria por business (horarios, ubicación, métodos de pago).
-  settings               Json     @default("{}") @map("settings_jsonb")
+  settings               Json      @default("{}") @map("settings_jsonb")
   /// Feature overrides por business (ver Feature flags en arquitectura §11.4).
-  featureOverrides       Json     @default("{}") @map("feature_overrides_jsonb")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  featureOverrides       Json      @default("{}") @map("feature_overrides_jsonb")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
   archivedAt             DateTime? @map("archived_at")
 
-  products          Product[]
-  conversations     Conversation[]
-  orders            Order[]
-  inboundMessages   InboundMessage[]
-  responseCache     ResponseCache[]
-  agentRuns         AgentRun[]
+  products           Product[]
+  conversations      Conversation[]
+  orders             Order[]
+  inboundMessages    InboundMessage[]
+  responseCache      ResponseCache[]
+  agentRuns          AgentRun[]
+  knowledgeDocuments KnowledgeDocument[]
 
   @@index([archivedAt])
   @@map("businesses")
@@ -77,9 +78,9 @@ model Product {
 /// Dimensión 1536 corresponde a OpenAI text-embedding-3-small.
 /// El índice HNSW se crea en migración SQL (Prisma no lo soporta inline aún).
 model ProductEmbedding {
-  productId String                       @id @map("product_id") @db.Uuid
+  productId String                      @id @map("product_id") @db.Uuid
   embedding Unsupported("vector(1536)")
-  updatedAt DateTime                     @updatedAt @map("updated_at")
+  updatedAt DateTime                    @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -91,10 +92,10 @@ model ProductEmbedding {
 // ============================================================================
 
 enum ConversationStatus {
-  ACTIVE       // agente atendiendo normalmente
-  ESCALATED    // pasó a humano del business
-  RESOLVED     // cerrada (orden creada o cliente satisfecho)
-  ABANDONED    // sin actividad > 24h
+  ACTIVE // agente atendiendo normalmente
+  ESCALATED // pasó a humano del business
+  RESOLVED // cerrada (orden creada o cliente satisfecho)
+  ABANDONED // sin actividad > 24h
 
   @@map("conversation_status")
 }
@@ -126,7 +127,7 @@ model Conversation {
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  business  Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business  Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
   messages  Message[]
   agentRuns AgentRun[]
   orders    Order[]
@@ -137,10 +138,10 @@ model Conversation {
 }
 
 enum MessageRole {
-  USER       // cliente final (mensaje entrante WhatsApp)
-  ASSISTANT  // agente Atiende
-  TOOL       // resultado de una tool ejecutada por el agente
-  SYSTEM     // marcadores internos (escalamiento, fin de turno, etc.)
+  USER // cliente final (mensaje entrante WhatsApp)
+  ASSISTANT // agente Atiende
+  TOOL // resultado de una tool ejecutada por el agente
+  SYSTEM // marcadores internos (escalamiento, fin de turno, etc.)
 
   @@map("message_role")
 }
@@ -166,14 +167,14 @@ model Message {
 /// Raw store de mensajes entrantes ANTES de procesarlos.
 /// Se persisten en el webhook receiver para garantizar zero loss (NFR-8).
 model InboundMessage {
-  id                String   @id @default(uuid()) @db.Uuid
-  businessId        String   @map("business_id") @db.Uuid
+  id                String    @id @default(uuid()) @db.Uuid
+  businessId        String    @map("business_id") @db.Uuid
   /// Payload completo de Meta tal cual llegó (debug + replay).
-  rawPayload        Json     @map("raw_payload_jsonb")
+  rawPayload        Json      @map("raw_payload_jsonb")
   /// Hash del mensaje para idempotencia (mismo mensaje 2 veces = procesado 1 vez).
-  externalMessageId String   @map("external_message_id")
+  externalMessageId String    @map("external_message_id")
   processedAt       DateTime? @map("processed_at")
-  receivedAt        DateTime @default(now()) @map("received_at")
+  receivedAt        DateTime  @default(now()) @map("received_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -187,8 +188,8 @@ model InboundMessage {
 // ============================================================================
 
 enum CacheHitLayer {
-  EXACT      // capa 3 - Redis sha256
-  SEMANTIC   // capa 2 - pgvector cosine
+  EXACT // capa 3 - Redis sha256
+  SEMANTIC // capa 2 - pgvector cosine
 
   @@map("cache_hit_layer")
 }
@@ -202,20 +203,20 @@ model AgentRun {
   id                       String         @id @default(uuid()) @db.Uuid
   businessId               String         @map("business_id") @db.Uuid
   conversationId           String         @map("conversation_id") @db.Uuid
-  model                    String         // 'claude-opus-4-7', etc.
+  model                    String // 'claude-opus-4-7', etc.
   llmProvider              String         @map("llm_provider") // 'claude', 'openai', ...
   latencyMs                Int            @map("latency_ms")
   inputTokens              Int            @map("input_tokens")
   outputTokens             Int            @map("output_tokens")
   cacheCreationInputTokens Int            @default(0) @map("cache_creation_input_tokens")
   cacheReadInputTokens     Int            @default(0) @map("cache_read_input_tokens")
-  costUsd                  Decimal        @db.Decimal(10, 6) @map("cost_usd")
+  costUsd                  Decimal        @map("cost_usd") @db.Decimal(10, 6)
   /// Tool calls de este turno: array de { name, input, latencyMs, success }.
   toolCalls                Json           @default("[]") @map("tool_calls_jsonb")
   stopReason               String?        @map("stop_reason")
   /// Si el turno usó cache (response cache), qué capa.
   cacheHitLayer            CacheHitLayer? @map("cache_hit_layer_enum")
-  cacheHitSimilarity       Decimal?       @db.Decimal(5, 4) @map("cache_hit_similarity")
+  cacheHitSimilarity       Decimal?       @map("cache_hit_similarity") @db.Decimal(5, 4)
   createdAt                DateTime       @default(now()) @map("created_at")
 
   business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
@@ -232,10 +233,10 @@ model AgentRun {
 // ============================================================================
 
 enum OrderStatus {
-  PENDING    // creada por el agente, pendiente de confirmación del business
-  CONFIRMED  // confirmada por el business
-  CANCELLED  // cancelada
-  FULFILLED  // entregada
+  PENDING // creada por el agente, pendiente de confirmación del business
+  CONFIRMED // confirmada por el business
+  CANCELLED // cancelada
+  FULFILLED // entregada
 
   @@map("order_status")
 }
@@ -275,28 +276,119 @@ model Order {
 /// Si el embedding model cambia, los vectores viejos quedan en otro espacio
 /// y los matches se vuelven basura. El service debe filtrar por embeddingModel.
 model ResponseCache {
-  id             String                       @id @default(uuid()) @db.Uuid
-  businessId     String                       @map("business_id") @db.Uuid
+  id             String                      @id @default(uuid()) @db.Uuid
+  businessId     String                      @map("business_id") @db.Uuid
   /// Modelo usado para generar este embedding. Ej: 'text-embedding-3-small'.
-  embeddingModel String                       @map("embedding_model")
+  embeddingModel String                      @map("embedding_model")
   /// Query del cliente. Considerar: si puede contener PII, hashear antes.
   /// Por ahora plaintext porque queries cacheables son no-personales (FAQ, etc.)
   /// y la safety rail `hasPersonalInfo` ya bypasea el cache cuando hay PII.
-  queryText      String                       @map("query_text")
-  queryEmbedding Unsupported("vector(1536)")  @map("query_embedding")
-  responseText   String                       @map("response_text")
+  queryText      String                      @map("query_text")
+  queryEmbedding Unsupported("vector(1536)") @map("query_embedding")
+  responseText   String                      @map("response_text")
   /// Si la respuesta involucró tools, guardamos cuáles (para invalidación selectiva).
-  toolCalls      Json                         @default("[]") @map("tool_calls_jsonb")
-  hitCount       Int                          @default(0) @map("hit_count")
-  lastUsedAt     DateTime?                    @map("last_used_at")
-  expiresAt      DateTime                     @map("expires_at")
-  createdAt      DateTime                     @default(now()) @map("created_at")
+  toolCalls      Json                        @default("[]") @map("tool_calls_jsonb")
+  hitCount       Int                         @default(0) @map("hit_count")
+  lastUsedAt     DateTime?                   @map("last_used_at")
+  expiresAt      DateTime                    @map("expires_at")
+  createdAt      DateTime                    @default(now()) @map("created_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId, embeddingModel, expiresAt])
   @@index([expiresAt]) // para job de cleanup
   @@map("response_cache")
+}
+
+// ============================================================================
+// KNOWLEDGE INGESTION (FAQ, políticas, PDFs, manuales)
+// ============================================================================
+//
+// Complementa el catálogo (Product) con conocimiento no-estructurado del business.
+// El agente lo consulta vía la tool `search_knowledge`. Ver arch §14.
+
+enum KnowledgeKind {
+  FAQ // Preguntas frecuentes (horarios, ubicación, métodos de pago)
+  POLICY // Políticas (devolución, garantía, envío)
+  PDF_CATALOG // Catálogo en PDF (complementa products estructurados)
+  MANUAL // Manuales de uso de productos
+  NOTES // Notas libres del business
+  OTHER
+
+  @@map("knowledge_kind")
+}
+
+enum KnowledgeStatus {
+  PENDING // Subido, sin procesar
+  EXTRACTING // Extrayendo texto del archivo
+  CHUNKING // Dividiendo en chunks
+  EMBEDDING // Generando embeddings
+  INDEXED // Listo para uso
+  FAILED // Falló en algún paso (ver errorMessage)
+
+  @@map("knowledge_status")
+}
+
+/// Un documento de conocimiento subido por el business (PDF, FAQ, política, etc.).
+/// Es la unidad lógica que el business ve en el dashboard.
+model KnowledgeDocument {
+  id           String          @id @default(uuid()) @db.Uuid
+  businessId   String          @map("business_id") @db.Uuid
+  kind         KnowledgeKind
+  title        String
+  /// Identificador del origen: filename del PDF, "form:faq:horarios", URL de
+  /// donde se importó, etc. Único por business — re-subir mismo source actualiza.
+  source       String
+  /// SHA256 del contenido original. Si re-subes y no cambia, no se re-indexa.
+  sourceHash   String          @map("source_hash")
+  /// Estado del pipeline de ingesta.
+  status       KnowledgeStatus @default(PENDING)
+  /// Mensaje de error si status=FAILED.
+  errorMessage String?         @map("error_message")
+  /// Cuántos chunks se generaron al indexar (para mostrar al business).
+  chunkCount   Int             @default(0) @map("chunk_count")
+  /// Si false, los chunks no se consideran en la búsqueda (soft-delete).
+  active       Boolean         @default(true)
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  /// Timestamp del último indexado exitoso.
+  indexedAt    DateTime?       @map("indexed_at")
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  chunks   KnowledgeChunk[]
+
+  @@unique([businessId, source])
+  @@index([businessId, kind, active])
+  @@index([businessId, status])
+  @@map("knowledge_documents")
+}
+
+/// Un chunk individual de un documento, con su embedding.
+/// Es la unidad de retrieval para la tool search_knowledge.
+///
+/// businessId y kind están DENORMALIZADOS desde el documento padre para
+/// permitir queries multi-tenant + filtro por tipo sin JOIN (crítico para
+/// latencia de retrieval).
+model KnowledgeChunk {
+  id             String                      @id @default(uuid()) @db.Uuid
+  documentId     String                      @map("document_id") @db.Uuid
+  businessId     String                      @map("business_id") @db.Uuid
+  kind           KnowledgeKind
+  /// Posición ordinal del chunk dentro del documento (0-indexed).
+  position       Int
+  text           String
+  /// Localizador para citas: "ver pág. 12", "fila 5", "sección Devoluciones".
+  pageNumber     Int?                        @map("page_number")
+  /// Modelo usado para generar el embedding. Crítico para invalidación al cambiar de modelo.
+  embeddingModel String                      @map("embedding_model")
+  embedding      Unsupported("vector(1536)")
+  createdAt      DateTime                    @default(now()) @map("created_at")
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, kind, embeddingModel])
+  @@index([documentId, position])
+  @@map("knowledge_chunks")
 }
 
 // ============================================================================
@@ -334,7 +426,7 @@ model EvalRun {
   /// Notas o diff vs expected.
   notes        String?
   durationMs   Int      @map("duration_ms")
-  costUsd      Decimal  @db.Decimal(10, 6) @map("cost_usd")
+  costUsd      Decimal  @map("cost_usd") @db.Decimal(10, 6)
   createdAt    DateTime @default(now()) @map("created_at")
 
   evalCase EvalCase @relation(fields: [evalCaseId], references: [id], onDelete: Cascade)
