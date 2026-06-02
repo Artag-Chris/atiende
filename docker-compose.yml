@@ -1,15 +1,19 @@
-# Atiende - Local development infrastructure
-# Postgres 16 with pgvector extension + Redis 7
+# Atiende - Docker Compose
 #
-# Usage:
-#   npm run docker:up        # start in background
-#   npm run docker:logs      # tail logs
-#   npm run docker:down      # stop and remove containers
+# Postgres dedicado con pgvector + Redis compartido vía microservices-network.
 #
-# Data persists in named volumes (atiende_pgdata, atiende_redisdata).
-# To wipe data: docker compose down -v
+# Uso:
+#   docker compose up -d     # levanta postgres (pgvector) + atiende (hot-reload)
+#   docker compose down      # detiene todo
+#   docker compose down -v   # detiene y borra datos de postgres
+#
+# ⚠️ El Redis se comparte con otros proyectos en microservices-network.
+#    Debe estar corriendo antes de iniciar atiende.
 
 services:
+  # ─────────────────────────────────────────
+  # PostgreSQL 16 + pgvector (exclusivo atiende)
+  # ─────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg16
     container_name: atiende-postgres
@@ -19,7 +23,7 @@ services:
       POSTGRES_PASSWORD: atiende_dev
       POSTGRES_DB: atiende
     ports:
-      - "5432:5432"
+      - "${PGVECTOR_PORT:-5433}:5432"
     volumes:
       - atiende_pgdata:/var/lib/postgresql/data
       - ./prisma/init:/docker-entrypoint-initdb.d:ro
@@ -28,24 +32,41 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - microservices-network
 
-  redis:
-    image: redis:7-alpine
-    container_name: atiende-redis
+  # ─────────────────────────────────────────
+  # Atiende app
+  # ─────────────────────────────────────────
+  atiende:
+    build:
+      context: .
+      target: development
+    container_name: atiende-app
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${PORT:-3000}:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: postgresql://atiende:atiende_dev@atiende-postgres:5432/atiende?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PREFIX: atiende:dev
     volumes:
-      - atiende_redisdata:/data
-    command: ["redis-server", "--appendonly", "yes"]
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - microservices-network
 
 volumes:
   atiende_pgdata:
     name: atiende_pgdata
-  atiende_redisdata:
-    name: atiende_redisdata
+
+networks:
+  microservices-network:
+    external: true
