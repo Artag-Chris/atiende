@@ -60,13 +60,19 @@ export async function bootstrap(): Promise<void> {
     }),
   );
 
-  const corsOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
+  const rawOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  if (corsOrigins.length === 0) {
+  if (rawOrigins.length === 0) {
     logger.warn('CORS_ALLOWED_ORIGINS is empty. Dashboard will not connect.');
   }
-  app.enableCors({ origin: corsOrigins, credentials: true });
+  const corsOrigins = rawOrigins.includes('*')
+    ? '*'
+    : rawOrigins;
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: corsOrigins !== '*',
+  });
 
   if (env.TRUST_PROXY > 0) {
     app.set('trust proxy', env.TRUST_PROXY);
