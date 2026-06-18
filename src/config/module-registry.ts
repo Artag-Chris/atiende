@@ -13,7 +13,7 @@ import { WhatsAppModule } from '../modules/channels/whatsapp/whatsapp.module';
  * NOTA: los imports están comentados hasta que los módulos existan. A medida
  * que implementemos cada uno, los descomentamos y los importamos arriba.
  */
-export function resolveModules(_features: Features): Array<Type<unknown> | DynamicModule> {
+export function resolveModules(features: Features): Array<Type<unknown> | DynamicModule> {
   const modules: Array<Type<unknown> | DynamicModule> = [];
 
   // ----- Core (siempre) -----

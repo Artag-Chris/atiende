@@ -7,9 +7,8 @@ import {
   RawBodyRequest,
   Req,
   Logger,
+  Inject,
 } from '@nestjs/common';
-import { Inject } from '@nestjs/common';
-import { META_WEBHOOK_VERIFY_TOKEN } from '../../../core/tokens';
 import type { Env } from '../../../config/env';
 import { ENV_TOKEN } from '../../../core/tokens';
 
