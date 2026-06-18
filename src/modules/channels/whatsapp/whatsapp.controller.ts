@@ -7,15 +7,21 @@ import {
   RawBodyRequest,
   Req,
   Logger,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { WhatsAppAdapter } from './whatsapp.adapter';
 
 @Controller('webhook/whatsapp')
 export class WhatsAppController {
   private readonly logger = new Logger(WhatsAppController.name);
   private readonly verifyToken: string;
 
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private readonly whatsapp: WhatsAppAdapter,
+  ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
   }
 
@@ -33,7 +39,7 @@ export class WhatsAppController {
     }
 
     this.logger.warn('Webhook verification failed — token mismatch');
-    throw new Error('Verification failed');
+    throw new UnauthorizedException('Verification failed');
   }
 
   @Post()
@@ -43,12 +49,30 @@ export class WhatsAppController {
   ) {
     this.logger.log('Inbound webhook received');
 
-    if (!signature) {
-      this.logger.warn('Missing x-hub-signature-256 header');
+    const rawBody = req.rawBody?.toString() ?? '';
+    if (!rawBody) {
+      throw new BadRequestException('Empty body');
     }
 
-    const rawBody = req.rawBody?.toString() ?? '';
-    this.logger.debug(`Raw body: ${rawBody.slice(0, 500)}`);
+    if (!signature) {
+      this.logger.warn('Missing x-hub-signature-256 header');
+    } else if (!this.whatsapp.verifyWebhookSignature(rawBody, signature)) {
+      throw new UnauthorizedException('Invalid signature');
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      throw new BadRequestException('Invalid JSON');
+    }
+
+    const messages = this.whatsapp.parseInboundWebhook(parsed);
+    this.logger.log(`Parsed ${messages.length} message(s) from webhook`);
+
+    for (const msg of messages) {
+      this.logger.debug(`[${msg.externalMessageId}] from=${msg.from} text="${msg.text?.slice(0, 100)}"`);
+    }
 
     return { status: 'ok' };
   }
