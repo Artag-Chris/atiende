@@ -7,18 +7,17 @@ import {
   RawBodyRequest,
   Req,
   Logger,
-  Inject,
 } from '@nestjs/common';
-import type { Env } from '../../../config/env';
-import { ENV_TOKEN } from '../../../core/tokens';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('webhook/whatsapp')
 export class WhatsAppController {
   private readonly logger = new Logger(WhatsAppController.name);
+  private readonly verifyToken: string;
 
-  constructor(
-    @Inject(ENV_TOKEN) private readonly env: Env,
-  ) {}
+  constructor(configService: ConfigService) {
+    this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
+  }
 
   @Get()
   verifyWebhook(
@@ -28,7 +27,7 @@ export class WhatsAppController {
   ): string {
     this.logger.log(`Webhook verify request: mode=${mode}`);
 
-    if (mode === 'subscribe' && token === this.env.META_WEBHOOK_VERIFY_TOKEN) {
+    if (mode === 'subscribe' && token === this.verifyToken) {
       this.logger.log('Webhook verified successfully');
       return challenge;
     }
