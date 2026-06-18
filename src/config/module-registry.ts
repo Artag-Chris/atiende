@@ -1,5 +1,6 @@
 import type { DynamicModule, Type } from '@nestjs/common';
 import type { Features } from './features';
+import { WhatsAppModule } from '../modules/channels/whatsapp/whatsapp.module';
 
 /**
  * Carga dinámica de módulos según feature flags.
@@ -29,7 +30,7 @@ export function resolveModules(_features: Features): Array<Type<unknown> | Dynam
   // if (features.llm.fallback) { ... }
 
   // ----- Canales -----
-  // if (features.channels.whatsapp) modules.push(WhatsAppModule);
+  if (features.channels.whatsapp) modules.push(WhatsAppModule);
   // if (features.channels.webChat)  modules.push(WebChatModule);
 
   // ----- Tools -----
