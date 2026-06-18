@@ -4,21 +4,27 @@ import { createHmac } from 'crypto';
 import type { ChannelProviderPort, ParsedInboundMessage, OutboundMessage, SendResult } from '@core/ports/channel-provider.port';
 import type { Channel } from '@core/domain/types';
 
-interface MetaWebhookEntry {
-  id: string;
-  changes: Array<{
-    value: {
-      messaging_product: string;
-      metadata: { display_phone_number: string; phone_number_id: string };
-      contacts?: Array<{ profile: { name: string }; wa_id: string }>;
-      messages?: Array<{
-        from: string;
-        id: string;
-        timestamp: string;
-        type: string;
-        text?: { body: string };
-      }>;
-    };
+interface MetaWebhookChange {
+  field: string;
+  value: {
+    messaging_product: string;
+    metadata: { display_phone_number: string; phone_number_id: string };
+    contacts?: Array<{ profile: { name: string }; wa_id: string }>;
+    messages?: Array<{
+      from: string;
+      id: string;
+      timestamp: string;
+      type: string;
+      text?: { body: string };
+    }>;
+  };
+}
+
+interface MetaWebhookPayload {
+  object: string;
+  entry: Array<{
+    id: string;
+    changes: MetaWebhookChange[];
   }>;
 }
 
@@ -43,15 +49,16 @@ export class WhatsAppAdapter implements ChannelProviderPort {
   }
 
   parseInboundWebhook(payload: unknown): ParsedInboundMessage[] {
-    const body = payload as MetaWebhookEntry;
-    const entries = Array.isArray(body) ? body : [body];
+    const body = payload as MetaWebhookPayload;
+
+    const entries = body.entry ?? (Array.isArray(body) ? body : []);
 
     const messages: ParsedInboundMessage[] = [];
 
     for (const entry of entries) {
       for (const change of entry.changes ?? []) {
         const value = change.value;
-        if (!value.messages) continue;
+        if (!value.messages || !value.metadata) continue;
 
         for (const msg of value.messages) {
           messages.push({
