@@ -45,11 +45,12 @@ services:
     container_name: atiende-app
     restart: unless-stopped
     ports:
-      - "${PORT:-3013}:3000"
+      - "${PORT:-3013}:3013"
     env_file:
       - .env
     environment:
       NODE_ENV: ${NODE_ENV:-development}
+      PORT: ${PORT:-3013}
       DATABASE_URL: postgresql://atiende:atiende_dev@atiende-postgres:5432/atiende?schema=public
       REDIS_HOST: redis
       REDIS_PORT: 6379
