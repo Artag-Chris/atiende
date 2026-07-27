@@ -215,13 +215,28 @@ export function buildAIConfig(env: Env): AIConfig {
 function buildFallbackConfig(env: Env): LLMProviderConfig | null {
   const fallback = env.FEATURE_LLM_FALLBACK;
   if (fallback === '' || fallback === undefined) return null;
+  const isOpenAI = fallback === 'openai';
+  const isGemini = fallback === 'gemini';
+  const isGroq = fallback === 'groq';
   return {
     provider: fallback,
     model: modelForProvider(fallback, env),
     effort: 'medium',
     maxTokens: env.ANTHROPIC_MAX_TOKENS,
-    timeoutMs: env.OPENAI_TIMEOUT_MS,
-    maxRetries: env.OPENAI_MAX_RETRIES,
+    timeoutMs: isOpenAI
+      ? env.OPENAI_TIMEOUT_MS
+      : isGemini
+        ? env.GEMINI_TIMEOUT_MS
+        : isGroq
+          ? env.GROQ_TIMEOUT_MS
+          : env.ANTHROPIC_TIMEOUT_MS,
+    maxRetries: isOpenAI
+      ? env.OPENAI_MAX_RETRIES
+      : isGemini
+        ? env.GEMINI_MAX_RETRIES
+        : isGroq
+          ? env.GROQ_MAX_RETRIES
+          : env.ANTHROPIC_MAX_RETRIES,
   };
 }
 

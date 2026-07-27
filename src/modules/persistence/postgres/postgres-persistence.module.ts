@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { AGENT_RUN_REPOSITORY_TOKEN } from '@core/tokens';
 import { PrismaModule } from './prisma.module';
 import { BusinessRepository } from './business.repository';
@@ -7,6 +7,7 @@ import { MessageRepository } from './message.repository';
 import { AgentRunRepository } from './agent-run.repository';
 import { InboundMessageRepository } from './inbound-message.repository';
 
+@Global()
 @Module({
   imports: [PrismaModule],
   providers: [

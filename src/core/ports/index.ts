@@ -5,3 +5,4 @@ export * from './response-cache.port';
 export * from './tool-module.port';
 export * from './document-extractor.port';
 export * from './chunker.port';
+export * from './agent-run-repository.port';
