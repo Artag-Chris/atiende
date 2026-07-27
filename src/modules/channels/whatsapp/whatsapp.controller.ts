@@ -9,9 +9,22 @@ import {
   Logger,
   UnauthorizedException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WhatsAppAdapter } from './whatsapp.adapter';
+import { AgentService } from '@core/services/agent.service';
+import type { ChannelProviderPort } from '@core/ports/channel-provider.port';
+import { CHANNEL_PROVIDERS_TOKEN } from '@core/tokens';
+
+const DEFAULT_SYSTEM_PROMPT = `Eres Atiende, un asistente conversacional de IA para una tienda. Atiendes clientes por WhatsApp con calidez y eficiencia.
+
+REGLAS:
+- Responde en español.
+- Sé corto y directo (máximo 2-3 oraciones).
+- Si el cliente pregunta por un producto, di que estás buscando en el catálogo.
+- Si no sabes algo, di que no tienes esa información.
+- Nunca inventes precios o productos.`;
 
 @Controller('webhook/whatsapp')
 export class WhatsAppController {
@@ -21,6 +34,9 @@ export class WhatsAppController {
   constructor(
     configService: ConfigService,
     private readonly whatsapp: WhatsAppAdapter,
+    private readonly agentService: AgentService,
+    @Inject(CHANNEL_PROVIDERS_TOKEN)
+    private readonly channelProviders: ChannelProviderPort[],
   ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
   }
@@ -43,7 +59,7 @@ export class WhatsAppController {
   }
 
   @Post()
-  handleInbound(
+  async handleInbound(
     @Req() req: RawBodyRequest<Request>,
     @Headers('x-hub-signature-256') signature: string,
   ) {
@@ -71,7 +87,38 @@ export class WhatsAppController {
     this.logger.log(`Parsed ${messages.length} message(s) from webhook`);
 
     for (const msg of messages) {
-      this.logger.debug(`[${msg.externalMessageId}] from=${msg.from} text="${msg.text?.slice(0, 100)}"`);
+      if (msg.type !== 'text' || !msg.text) {
+        this.logger.debug(`Skipping non-text message: ${msg.type}`);
+        continue;
+      }
+
+      this.logger.log(`Processing message from ${msg.from}: "${msg.text}"`);
+
+      try {
+        const agentResponse = await this.agentService.runTurn({
+          systemPrompt: DEFAULT_SYSTEM_PROMPT,
+          userMessage: msg.text,
+        });
+
+        this.logger.log(
+          `Agent responded: "${agentResponse.text.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
+        );
+
+        const whatsapp = this.channelProviders.find(
+          (p) => p.name === 'whatsapp',
+        );
+
+        if (whatsapp) {
+          await whatsapp.send({
+            businessId: msg.externalAccountId,
+            to: msg.from,
+            text: agentResponse.text,
+          });
+          this.logger.log(`Response sent to ${msg.from}`);
+        }
+      } catch (error) {
+        this.logger.error(`Error processing message: ${error}`);
+      }
     }
 
     return { status: 'ok' };

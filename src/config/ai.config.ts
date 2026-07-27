@@ -137,14 +137,16 @@ export interface AIConfig {
  * proveer vía DI con el token FEATURES o AI_CONFIG.
  */
 export function buildAIConfig(env: Env): AIConfig {
+  const isPrimaryOpenAI = env.FEATURE_LLM_PRIMARY === 'openai';
+
   return {
     primary: {
       provider: env.FEATURE_LLM_PRIMARY,
       model: modelForProvider(env.FEATURE_LLM_PRIMARY, env),
-      effort: env.ANTHROPIC_EFFORT,
+      effort: isPrimaryOpenAI ? 'medium' : env.ANTHROPIC_EFFORT,
       maxTokens: env.ANTHROPIC_MAX_TOKENS,
-      timeoutMs: env.ANTHROPIC_TIMEOUT_MS,
-      maxRetries: env.ANTHROPIC_MAX_RETRIES,
+      timeoutMs: isPrimaryOpenAI ? env.OPENAI_TIMEOUT_MS : env.ANTHROPIC_TIMEOUT_MS,
+      maxRetries: isPrimaryOpenAI ? env.OPENAI_MAX_RETRIES : env.ANTHROPIC_MAX_RETRIES,
     },
     fallback: buildFallbackConfig(env),
     promptCaching: {

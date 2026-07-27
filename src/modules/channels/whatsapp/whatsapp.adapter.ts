@@ -77,10 +77,38 @@ export class WhatsAppAdapter implements ChannelProviderPort {
     return messages;
   }
 
-  async send(_message: OutboundMessage): Promise<SendResult> {
-    this.logger.warn('WhatsApp send not yet implemented — week 2');
+  async send(message: OutboundMessage): Promise<SendResult> {
+    const phoneId = message.businessId;
+    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+
+    const body = {
+      messaging_product: 'whatsapp',
+      to: message.to,
+      type: 'text',
+      text: { body: message.text },
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.META_DEV_ACCESS_TOKEN}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      this.logger.error(`WhatsApp send failed: ${response.status} ${error}`);
+      throw new Error(`WhatsApp send failed: ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      messages?: Array<{ id: string }>;
+    };
+
     return {
-      externalMessageId: 'mock',
+      externalMessageId: data.messages?.[0]?.id ?? 'unknown',
       sentAt: new Date(),
     };
   }
