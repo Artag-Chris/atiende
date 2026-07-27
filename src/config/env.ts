@@ -66,6 +66,14 @@ export const EnvSchema = z.object({
   OPENAI_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 
   // ============================================================
+  // 5b. GEMINI (Google AI Studio — free tier)
+  // ============================================================
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.0-flash'),
+  GEMINI_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  GEMINI_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+
+  // ============================================================
   // 6. META WHATSAPP
   // ============================================================
   META_APP_ID: z.string().min(1, 'META_APP_ID is required'),
@@ -159,8 +167,10 @@ export const EnvSchema = z.object({
   // ============================================================
   // 14-17. FEATURE FLAGS (consumidos por src/config/features.ts)
   // ============================================================
-  FEATURE_LLM_PRIMARY: z.enum(['claude', 'openai', 'mock']).default('claude'),
-  FEATURE_LLM_FALLBACK: z.union([z.enum(['claude', 'openai', 'mock']), z.literal('')]).default(''),
+  FEATURE_LLM_PRIMARY: z.enum(['claude', 'openai', 'gemini', 'mock']).default('claude'),
+  FEATURE_LLM_FALLBACK: z
+    .union([z.enum(['claude', 'openai', 'gemini', 'mock']), z.literal('')])
+    .default(''),
   FEATURE_AI_PROMPT_CACHING: boolFromEnv.default(true),
   FEATURE_AI_COMPACTION: boolFromEnv.default(true),
   FEATURE_AI_ADAPTIVE_THINKING: boolFromEnv.default(true),
