@@ -2,6 +2,7 @@ import type { DynamicModule, Type } from '@nestjs/common';
 import type { Features } from './features';
 import { WhatsAppModule } from '../modules/channels/whatsapp/whatsapp.module';
 import { OpenAIModule } from '../modules/llm/openai/openai.module';
+import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
 
 /**
  * Carga dinámica de módulos según feature flags.
@@ -20,7 +21,9 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
       modules.push(OpenAIModule);
       break;
     // case 'claude': modules.push(ClaudeModule); break;
-    // case 'mock':   modules.push(MockLlmModule); break;
+    default:
+      modules.push(MockLLMModule);
+      break;
   }
 
   // ----- LLM fallback (opcional) -----
