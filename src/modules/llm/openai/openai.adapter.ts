@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
 import { calculateCost, type AIConfig } from '@config/ai.config';
+import { AI_CONFIG_TOKEN } from '@core/tokens';
 
 @Injectable()
 export class OpenAIAdapter implements LLMProviderPort {
@@ -11,7 +12,7 @@ export class OpenAIAdapter implements LLMProviderPort {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(private readonly config: AIConfig) {
+  constructor(@Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig) {
     this.client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       timeout: config.primary.timeoutMs,
