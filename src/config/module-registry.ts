@@ -5,6 +5,7 @@ import { OpenAIModule } from '../modules/llm/openai/openai.module';
 import { GeminiModule } from '../modules/llm/gemini/gemini.module';
 import { GroqModule } from '../modules/llm/groq/groq.module';
 import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
+import { PostgresPersistenceModule } from '../modules/persistence/postgres/postgres-persistence.module';
 
 /**
  * Carga dinámica de módulos según feature flags.
@@ -16,6 +17,9 @@ import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
  */
 export function resolveModules(features: Features): Array<Type<unknown> | DynamicModule> {
   const modules: Array<Type<unknown> | DynamicModule> = [];
+
+  // ----- Persistencia (siempre habilitada) -----
+  modules.push(PostgresPersistenceModule);
 
   // ----- LLM primario -----
   switch (features.llm.primary) {

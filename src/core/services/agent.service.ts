@@ -1,12 +1,18 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { LLMProviderPort } from '@core/ports/llm-provider.port';
+import type { AgentRunRepositoryPort } from '@core/ports/agent-run-repository.port';
 import type { AIConfig } from '@config/ai.config';
-import { LLM_PROVIDER_TOKEN, AI_CONFIG_TOKEN } from '@core/tokens';
+import { LLM_PROVIDER_TOKEN, AI_CONFIG_TOKEN, AGENT_RUN_REPOSITORY_TOKEN } from '@core/tokens';
 
 export interface AgentInput {
   systemPrompt: string;
   userMessage: string;
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  /** Contexto para persistencia del agent run. Si se provee, se guarda automáticamente. */
+  persistence?: {
+    businessId: string;
+    conversationId: string;
+  };
 }
 
 export interface AgentOutput {
@@ -27,6 +33,7 @@ export class AgentService {
   constructor(
     @Inject(LLM_PROVIDER_TOKEN) private readonly llm: LLMProviderPort,
     @Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig,
+    @Inject(AGENT_RUN_REPOSITORY_TOKEN) private readonly agentRunRepo: AgentRunRepositoryPort,
   ) {}
 
   async runTurn(input: AgentInput): Promise<AgentOutput> {
@@ -54,6 +61,26 @@ export class AgentService {
     this.logger.log(
       `[Agent] Turn completed: ${latencyMs}ms | model=${response.model} | tokens=${response.usage.inputTokens}+${response.usage.outputTokens} | $${response.costUsd.toFixed(6)}`,
     );
+
+    if (input.persistence) {
+      try {
+        await this.agentRunRepo.save({
+          businessId: input.persistence.businessId,
+          conversationId: input.persistence.conversationId,
+          model: response.model,
+          llmProvider: this.config.primary.provider,
+          latencyMs,
+          inputTokens: response.usage.inputTokens,
+          outputTokens: response.usage.outputTokens,
+          cacheCreationInputTokens: response.usage.cacheCreationInputTokens,
+          cacheReadInputTokens: response.usage.cacheReadInputTokens,
+          costUsd: response.costUsd,
+          stopReason: response.stopReason,
+        });
+      } catch (error) {
+        this.logger.error(`Failed to save agent run: ${error}`);
+      }
+    }
 
     return {
       text: response.text,

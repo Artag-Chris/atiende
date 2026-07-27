@@ -16,6 +16,10 @@ import { WhatsAppAdapter } from './whatsapp.adapter';
 import { AgentService } from '@core/services/agent.service';
 import type { ChannelProviderPort } from '@core/ports/channel-provider.port';
 import { CHANNEL_PROVIDERS_TOKEN } from '@core/tokens';
+import { BusinessRepository } from '@modules/persistence/postgres/business.repository';
+import { ConversationRepository } from '@modules/persistence/postgres/conversation.repository';
+import { MessageRepository } from '@modules/persistence/postgres/message.repository';
+import { InboundMessageRepository } from '@modules/persistence/postgres/inbound-message.repository';
 
 const DEFAULT_SYSTEM_PROMPT = `Eres Atiende, un asistente conversacional de IA para una tienda. Atiendes clientes por WhatsApp con calidez y eficiencia.
 
@@ -37,6 +41,10 @@ export class WhatsAppController {
     private readonly agentService: AgentService,
     @Inject(CHANNEL_PROVIDERS_TOKEN)
     private readonly channelProviders: ChannelProviderPort[],
+    private readonly businessRepo: BusinessRepository,
+    private readonly conversationRepo: ConversationRepository,
+    private readonly messageRepo: MessageRepository,
+    private readonly inboundMessageRepo: InboundMessageRepository,
   ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
   }
@@ -95,10 +103,62 @@ export class WhatsAppController {
     this.logger.log(`Processing message from ${firstText.from}: "${firstText.text}"`);
 
     try {
+      const business = await this.businessRepo.findByPhoneId(firstText.externalAccountId);
+      if (!business) {
+        this.logger.warn(
+          `No business found for phone_id=${firstText.externalAccountId}. Processing without persistence.`,
+        );
+      }
+
+      const conversation = business
+        ? await this.conversationRepo.getOrCreate(business.id, 'WHATSAPP', firstText.from)
+        : null;
+
+      if (business && conversation) {
+        const alreadyExists = await this.inboundMessageRepo.existsByExternalId(
+          business.id,
+          firstText.externalMessageId,
+        );
+        if (alreadyExists) {
+          this.logger.debug(`Duplicate inbound message ${firstText.externalMessageId}, skipping`);
+          return { status: 'ok' };
+        }
+
+        await this.inboundMessageRepo.save({
+          businessId: business.id,
+          rawPayload: firstText.rawPayload as Record<string, unknown>,
+          externalMessageId: firstText.externalMessageId,
+        });
+
+        await this.messageRepo.save({
+          conversationId: conversation.id,
+          role: 'USER',
+          content: [{ type: 'text', text: firstText.text }],
+        });
+      }
+
       const agentResponse = await this.agentService.runTurn({
-        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        systemPrompt: business?.systemPromptExtras
+          ? `${DEFAULT_SYSTEM_PROMPT}\n\n${business.systemPromptExtras}`
+          : DEFAULT_SYSTEM_PROMPT,
         userMessage: firstText.text,
+        persistence:
+          business && conversation
+            ? { businessId: business.id, conversationId: conversation.id }
+            : undefined,
       });
+
+      if (business && conversation) {
+        await this.messageRepo.save({
+          conversationId: conversation.id,
+          role: 'ASSISTANT',
+          content: [{ type: 'text', text: agentResponse.text }],
+          tokenUsage: {
+            inputTokens: agentResponse.usage.inputTokens,
+            outputTokens: agentResponse.usage.outputTokens,
+          },
+        });
+      }
 
       this.logger.log(
         `Agent responded: "${agentResponse.text.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,

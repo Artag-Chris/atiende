@@ -36,6 +36,9 @@ export const TOOL_MODULES_TOKEN = Symbol('TOOL_MODULES');
 export const DOCUMENT_EXTRACTORS_TOKEN = Symbol('DOCUMENT_EXTRACTORS');
 export const CHUNKER_TOKEN = Symbol('CHUNKER');
 
+// ----- Persistence -----------------------------------------------------------
+export const AGENT_RUN_REPOSITORY_TOKEN = Symbol('AGENT_RUN_REPOSITORY');
+
 // ============================================================================
 // DEPRECATED — mantener temporalmente para no romper imports en módulos viejos.
 // Eliminar tras migrar todos los consumers a los `_TOKEN` aliases.
