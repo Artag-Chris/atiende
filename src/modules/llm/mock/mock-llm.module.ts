@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { LLM_PROVIDER_TOKEN, LLM_PROVIDER_FALLBACK_TOKEN } from '@core/tokens';
 import { MockLLMAdapter } from './mock-llm.adapter';
 
+@Global()
 @Module({
   providers: [
     MockLLMAdapter,
