@@ -9,13 +9,10 @@ import {
   Logger,
   UnauthorizedException,
   BadRequestException,
-  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { WhatsAppAdapter } from './whatsapp.adapter';
 import { AgentService } from '@core/services/agent.service';
-import type { ChannelProviderPort } from '@core/ports/channel-provider.port';
-import { CHANNEL_PROVIDERS_TOKEN } from '@core/tokens';
 import { BusinessRepository } from '@modules/persistence/postgres/business.repository';
 import { ConversationRepository } from '@modules/persistence/postgres/conversation.repository';
 import { MessageRepository } from '@modules/persistence/postgres/message.repository';
@@ -40,8 +37,6 @@ export class WhatsAppController {
     configService: ConfigService,
     private readonly whatsapp: WhatsAppAdapter,
     private readonly agentService: AgentService,
-    @Inject(CHANNEL_PROVIDERS_TOKEN)
-    private readonly channelProviders: ChannelProviderPort[],
     private readonly businessRepo: BusinessRepository,
     private readonly conversationRepo: ConversationRepository,
     private readonly messageRepo: MessageRepository,
@@ -165,16 +160,12 @@ export class WhatsAppController {
         `Agent responded: "${agentResponse.text.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
       );
 
-      const whatsapp = this.channelProviders.find((p) => p.name === 'whatsapp');
-
-      if (whatsapp) {
-        await whatsapp.send({
-          businessId: firstText.externalAccountId,
-          to: firstText.from,
-          text: agentResponse.text,
-        });
-        this.logger.log(`Response sent to ${firstText.from}`);
-      }
+      await this.whatsapp.send({
+        businessId: firstText.externalAccountId,
+        to: firstText.from,
+        text: agentResponse.text,
+      });
+      this.logger.log(`Response sent to ${firstText.from}`);
     } catch (error) {
       this.logger.error(`Error processing message: ${error}`);
     }
