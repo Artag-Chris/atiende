@@ -2,20 +2,19 @@ import { Module, type DynamicModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { CoreModule } from './core/core.module';
-import {
-  AI_CONFIG_TOKEN,
-  CIRCUIT_BREAKER_CONFIG_TOKEN,
-  ENV_TOKEN,
-  FEATURES_TOKEN,
-} from './core/tokens';
 import { buildFeatures, type Features } from './config/features';
 import { loadEnv, type Env } from './config/env';
 import { buildAIConfig, buildCircuitBreakerConfig } from './config/ai.config';
 import { resolveModules } from './config/module-registry';
+import { ConfigProviderModule } from './config/config-provider.module';
 
 /**
  * AppModule raíz. Usa forRoot() para construir la composición de módulos
  * dinámicamente según env validado + feature flags.
+ *
+ * Los tokens de configuración (AI_CONFIG, CIRCUIT_BREAKER, etc.) se proveen
+ * vía ConfigProviderModule (@Global), no directamente en este módulo, para que
+ * módulos importados como OpenAIModule puedan acceder a ellos.
  *
  * Ver docs/01_ARCHITECTURE.md §11.4.
  */
@@ -29,16 +28,12 @@ export class AppModule {
       module: AppModule,
       imports: [
         ConfigModule.forRoot({ isGlobal: true, cache: true }),
+        ConfigProviderModule.forRoot(env, features, aiConfig, circuitBreakerConfig),
         CoreModule,
         ...resolveModules(features),
       ],
-      providers: [
-        { provide: ENV_TOKEN, useValue: env },
-        { provide: FEATURES_TOKEN, useValue: features },
-        { provide: AI_CONFIG_TOKEN, useValue: aiConfig },
-        { provide: CIRCUIT_BREAKER_CONFIG_TOKEN, useValue: circuitBreakerConfig },
-      ],
-      exports: [ENV_TOKEN, FEATURES_TOKEN, AI_CONFIG_TOKEN, CIRCUIT_BREAKER_CONFIG_TOKEN],
+      providers: [],
+      exports: [],
     };
   }
 
