@@ -1,8 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { LLMProviderPort } from '@core/ports/llm-provider.port';
-import { LLM_PROVIDER_TOKEN } from '@core/tokens';
 import type { AIConfig } from '@config/ai.config';
-import { AI_CONFIG_TOKEN } from '@core/tokens';
+import { LLM_PROVIDER_TOKEN, AI_CONFIG_TOKEN } from '@core/tokens';
 
 export interface AgentInput {
   systemPrompt: string;

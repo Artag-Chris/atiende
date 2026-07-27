@@ -86,39 +86,36 @@ export class WhatsAppController {
     const messages = this.whatsapp.parseInboundWebhook(parsed);
     this.logger.log(`Parsed ${messages.length} message(s) from webhook`);
 
-    for (const msg of messages) {
-      if (msg.type !== 'text' || !msg.text) {
-        this.logger.debug(`Skipping non-text message: ${msg.type}`);
-        continue;
-      }
+    const firstText = messages.find((m) => m.type === 'text' && m.text);
+    if (!firstText || !firstText.text) {
+      this.logger.debug('No text messages to process');
+      return { status: 'ok' };
+    }
 
-      this.logger.log(`Processing message from ${msg.from}: "${msg.text}"`);
+    this.logger.log(`Processing message from ${firstText.from}: "${firstText.text}"`);
 
-      try {
-        const agentResponse = await this.agentService.runTurn({
-          systemPrompt: DEFAULT_SYSTEM_PROMPT,
-          userMessage: msg.text,
+    try {
+      const agentResponse = await this.agentService.runTurn({
+        systemPrompt: DEFAULT_SYSTEM_PROMPT,
+        userMessage: firstText.text,
+      });
+
+      this.logger.log(
+        `Agent responded: "${agentResponse.text.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
+      );
+
+      const whatsapp = this.channelProviders.find((p) => p.name === 'whatsapp');
+
+      if (whatsapp) {
+        await whatsapp.send({
+          businessId: firstText.externalAccountId,
+          to: firstText.from,
+          text: agentResponse.text,
         });
-
-        this.logger.log(
-          `Agent responded: "${agentResponse.text.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
-        );
-
-        const whatsapp = this.channelProviders.find(
-          (p) => p.name === 'whatsapp',
-        );
-
-        if (whatsapp) {
-          await whatsapp.send({
-            businessId: msg.externalAccountId,
-            to: msg.from,
-            text: agentResponse.text,
-          });
-          this.logger.log(`Response sent to ${msg.from}`);
-        }
-      } catch (error) {
-        this.logger.error(`Error processing message: ${error}`);
+        this.logger.log(`Response sent to ${firstText.from}`);
       }
+    } catch (error) {
+      this.logger.error(`Error processing message: ${error}`);
     }
 
     return { status: 'ok' };

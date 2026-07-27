@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
-import type { ChannelProviderPort, ParsedInboundMessage, OutboundMessage, SendResult } from '@core/ports/channel-provider.port';
+import { createHmac, timingSafeEqual } from 'crypto';
+import type {
+  ChannelProviderPort,
+  ParsedInboundMessage,
+  OutboundMessage,
+  SendResult,
+} from '@core/ports/channel-provider.port';
 import type { Channel } from '@core/domain/types';
 
 interface MetaWebhookChange {
@@ -42,10 +47,10 @@ export class WhatsAppAdapter implements ChannelProviderPort {
     const expected = createHmac('sha256', this.appSecret)
       .update(typeof rawBody === 'string' ? rawBody : rawBody.toString())
       .digest('hex');
-    const received = signature.startsWith('sha256=')
-      ? signature.slice(7)
-      : signature;
-    return expected === received;
+    const received = signature.startsWith('sha256=') ? signature.slice(7) : signature;
+
+    if (expected.length !== received.length) return false;
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
   }
 
   parseInboundWebhook(payload: unknown): ParsedInboundMessage[] {
@@ -78,7 +83,10 @@ export class WhatsAppAdapter implements ChannelProviderPort {
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
-    const phoneId = message.businessId;
+    const phoneId = process.env.META_DEV_PHONE_NUMBER_ID;
+    if (!phoneId) {
+      throw new Error('META_DEV_PHONE_NUMBER_ID not configured');
+    }
     const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
 
     const body = {
@@ -88,6 +96,9 @@ export class WhatsAppAdapter implements ChannelProviderPort {
       text: { body: message.text },
     };
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -95,7 +106,9 @@ export class WhatsAppAdapter implements ChannelProviderPort {
         Authorization: `Bearer ${process.env.META_DEV_ACCESS_TOKEN}`,
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const error = await response.text();

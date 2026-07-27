@@ -1,16 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
-import type {
-  ChatRequest,
-  ChatResponse,
-  LLMProviderPort,
-} from '@core/ports/llm-provider.port';
-import type {
-  ChatMessage,
-  ContentBlock,
-  ToolCall,
-  ToolDefinition,
-} from '@core/domain/types';
+import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
+import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
 import { calculateCost, type AIConfig } from '@config/ai.config';
 
 @Injectable()
@@ -19,8 +10,6 @@ export class OpenAIAdapter implements LLMProviderPort {
   private readonly logger = new Logger(OpenAIAdapter.name);
   private readonly client: OpenAI;
   private readonly model: string;
-  private readonly timeoutMs: number;
-  private readonly maxRetries: number;
 
   constructor(private readonly config: AIConfig) {
     this.client = new OpenAI({
@@ -29,8 +18,6 @@ export class OpenAIAdapter implements LLMProviderPort {
       maxRetries: config.primary.maxRetries,
     });
     this.model = config.primary.model;
-    this.timeoutMs = config.primary.timeoutMs;
-    this.maxRetries = config.primary.maxRetries;
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
@@ -42,14 +29,14 @@ export class OpenAIAdapter implements LLMProviderPort {
     const response = await this.client.chat.completions.create({
       model: this.model,
       max_tokens: req.maxTokens,
-      messages: [
-        { role: 'system', content: req.systemPrompt },
-        ...messages,
-      ],
+      messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
       tools: tools?.length ? tools : undefined,
     });
 
     const choice = response.choices[0];
+    if (!choice) {
+      throw new Error('OpenAI returned no choices (possible content filter or safety block)');
+    }
     const latencyMs = Date.now() - startTime;
 
     const text = choice.message.content ?? '';
@@ -88,7 +75,9 @@ export class OpenAIAdapter implements LLMProviderPort {
     }
   }
 
-  private translateMessages(messages: ChatMessage[]): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  private translateMessages(
+    messages: ChatMessage[],
+  ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
     const result: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     for (const msg of messages) {
@@ -124,21 +113,24 @@ export class OpenAIAdapter implements LLMProviderPort {
     };
   }
 
-  private extractToolCalls(
-    message: OpenAI.Chat.Completions.ChatCompletionMessage,
-  ): ToolCall[] {
+  private extractToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMessage): ToolCall[] {
     if (!message.tool_calls) return [];
 
-    return message.tool_calls.map((tc) => ({
-      id: tc.id,
-      name: tc.function.name,
-      input: JSON.parse(tc.function.arguments) as Record<string, unknown>,
-    }));
+    return message.tool_calls.map((tc) => {
+      let input: Record<string, unknown>;
+      try {
+        input = JSON.parse(tc.function.arguments) as Record<string, unknown>;
+      } catch {
+        this.logger.warn(
+          `Failed to parse tool arguments for ${tc.function.name}: ${tc.function.arguments}`,
+        );
+        input = {};
+      }
+      return { id: tc.id, name: tc.function.name, input };
+    });
   }
 
-  private mapStopReason(
-    finishReason: string | null,
-  ): ChatResponse['stopReason'] {
+  private mapStopReason(finishReason: string | null): ChatResponse['stopReason'] {
     switch (finishReason) {
       case 'stop':
         return 'end_turn';
