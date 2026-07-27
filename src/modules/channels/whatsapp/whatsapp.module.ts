@@ -6,7 +6,8 @@ import { WhatsAppAdapter } from './whatsapp.adapter';
 
 const channelProvider = {
   provide: CHANNEL_PROVIDERS_TOKEN,
-  useExisting: WhatsAppAdapter,
+  useFactory: (whatsapp: WhatsAppAdapter) => [whatsapp],
+  inject: [WhatsAppAdapter],
   multi: true,
 };
 
