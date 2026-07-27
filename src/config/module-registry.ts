@@ -3,6 +3,7 @@ import type { Features } from './features';
 import { WhatsAppModule } from '../modules/channels/whatsapp/whatsapp.module';
 import { OpenAIModule } from '../modules/llm/openai/openai.module';
 import { GeminiModule } from '../modules/llm/gemini/gemini.module';
+import { GroqModule } from '../modules/llm/groq/groq.module';
 import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
 
 /**
@@ -24,6 +25,9 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
     case 'gemini':
       modules.push(GeminiModule);
       break;
+    case 'groq':
+      modules.push(GroqModule);
+      break;
     // case 'claude': modules.push(ClaudeModule); break;
     default:
       modules.push(MockLLMModule);
@@ -33,6 +37,8 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   // ----- LLM fallback (opcional) -----
   if (features.llm.fallback === 'openai') {
     modules.push(OpenAIModule);
+  } else if (features.llm.fallback === 'groq') {
+    modules.push(GroqModule);
   }
 
   // ----- Canales -----

@@ -84,13 +84,28 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     cacheWrite1hPer1M: 0.15,
     cacheReadPer1M: 0.0375,
   },
+  // Groq (free tier — OpenAI-compatible)
+  'llama-3.3-70b-versatile': {
+    inputPer1M: 0,
+    outputPer1M: 0,
+    cacheWrite5mPer1M: 0,
+    cacheWrite1hPer1M: 0,
+    cacheReadPer1M: 0,
+  },
+  'llama-3.1-8b-instant': {
+    inputPer1M: 0,
+    outputPer1M: 0,
+    cacheWrite5mPer1M: 0,
+    cacheWrite1hPer1M: 0,
+    cacheReadPer1M: 0,
+  },
 };
 
 // ============================================================================
 // Tipos de configuración
 // ============================================================================
 
-export type LLMProviderName = 'claude' | 'openai' | 'gemini' | 'mock';
+export type LLMProviderName = 'claude' | 'openai' | 'gemini' | 'groq' | 'mock';
 
 export interface LLMProviderConfig {
   provider: LLMProviderName;
@@ -154,23 +169,28 @@ export interface AIConfig {
 export function buildAIConfig(env: Env): AIConfig {
   const isPrimaryOpenAI = env.FEATURE_LLM_PRIMARY === 'openai';
   const isPrimaryGemini = env.FEATURE_LLM_PRIMARY === 'gemini';
+  const isPrimaryGroq = env.FEATURE_LLM_PRIMARY === 'groq';
 
   return {
     primary: {
       provider: env.FEATURE_LLM_PRIMARY,
       model: modelForProvider(env.FEATURE_LLM_PRIMARY, env),
-      effort: isPrimaryOpenAI || isPrimaryGemini ? 'medium' : env.ANTHROPIC_EFFORT,
+      effort: isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq ? 'medium' : env.ANTHROPIC_EFFORT,
       maxTokens: env.ANTHROPIC_MAX_TOKENS,
       timeoutMs: isPrimaryOpenAI
         ? env.OPENAI_TIMEOUT_MS
         : isPrimaryGemini
           ? env.GEMINI_TIMEOUT_MS
-          : env.ANTHROPIC_TIMEOUT_MS,
+          : isPrimaryGroq
+            ? env.GROQ_TIMEOUT_MS
+            : env.ANTHROPIC_TIMEOUT_MS,
       maxRetries: isPrimaryOpenAI
         ? env.OPENAI_MAX_RETRIES
         : isPrimaryGemini
           ? env.GEMINI_MAX_RETRIES
-          : env.ANTHROPIC_MAX_RETRIES,
+          : isPrimaryGroq
+            ? env.GROQ_MAX_RETRIES
+            : env.ANTHROPIC_MAX_RETRIES,
     },
     fallback: buildFallbackConfig(env),
     promptCaching: {
@@ -213,6 +233,8 @@ function modelForProvider(provider: LLMProviderName, env: Env): string {
       return env.OPENAI_FALLBACK_CHAT_MODEL;
     case 'gemini':
       return env.GEMINI_MODEL;
+    case 'groq':
+      return env.GROQ_MODEL;
     case 'mock':
       return 'mock';
   }

@@ -74,6 +74,14 @@ export const EnvSchema = z.object({
   GEMINI_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 
   // ============================================================
+  // 5c. GROQ (Groq Cloud — free tier, OpenAI-compatible)
+  // ============================================================
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().default('llama-3.3-70b-versatile'),
+  GROQ_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  GROQ_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+
+  // ============================================================
   // 6. META WHATSAPP
   // ============================================================
   META_APP_ID: z.string().min(1, 'META_APP_ID is required'),
@@ -167,9 +175,9 @@ export const EnvSchema = z.object({
   // ============================================================
   // 14-17. FEATURE FLAGS (consumidos por src/config/features.ts)
   // ============================================================
-  FEATURE_LLM_PRIMARY: z.enum(['claude', 'openai', 'gemini', 'mock']).default('claude'),
+  FEATURE_LLM_PRIMARY: z.enum(['claude', 'openai', 'gemini', 'groq', 'mock']).default('claude'),
   FEATURE_LLM_FALLBACK: z
-    .union([z.enum(['claude', 'openai', 'gemini', 'mock']), z.literal('')])
+    .union([z.enum(['claude', 'openai', 'gemini', 'groq', 'mock']), z.literal('')])
     .default(''),
   FEATURE_AI_PROMPT_CACHING: boolFromEnv.default(true),
   FEATURE_AI_COMPACTION: boolFromEnv.default(true),
