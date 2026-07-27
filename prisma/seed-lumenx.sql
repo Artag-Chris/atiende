@@ -1,7 +1,10 @@
 -- ============================================================================
 -- LumenX Labs - Staging Seed Data
--- Ejecutar: npx prisma db execute --file prisma/seed-lumenx.sql
+-- Ejecutar: npx prisma db execute --schema prisma/schema.prisma --file prisma/seed-lumenx.sql
 -- ============================================================================
+
+TRUNCATE TABLE products CASCADE;
+TRUNCATE TABLE businesses CASCADE;
 
 -- Business principal
 INSERT INTO businesses (id, name, whatsapp_phone_id, whatsapp_token_encrypted, system_prompt_extras, settings_jsonb)
@@ -10,32 +13,8 @@ VALUES (
   'LumenX Labs',
   '1161637943695191',
   'dev-token-placeholder',
-  'SOBRE LUMENX LABS:
-LumenX Labs es una empresa de desarrollo y automatización de software, diseño de páginas web premium y soluciones digitales a medida. Fundada por Christian Henao, un desarrollador con 5+ años de experiencia en múltiples campos.
-
-SERVICIOS:
-- Desarrollo de software a medida (web, móvil, APIs)
-- Automatización de procesos y flujos de trabajo
-- Diseño y desarrollo de páginas web premium
-- Integración con APIs externas (WhatsApp, pagos, CRM)
-- Chatbots e inteligencia artificial para negocios
-- Consultoría tecnológica
-
-IDIOMAS:
-- Español (principal)
-- Inglés
-
-CONTACTO:
-- Web: lumenxlabs.com.co
-- Líder: Christian Henao
-
-ESTILO DE RESPUESTA:
-- Sé profesional pero cercano.
-- Habla de los servicios con confianza.
-- Si el cliente quiere un presupuesto, pide detalles del proyecto y indica que el equipo lo contactará pronto.
-- Menciona que LumenX Labs trabaja con tecnologías modernas (React, Next.js, NestJS, Python, IA).
-- Si el cliente pregunta por precios, indica que cada proyecto es personalizado y se cotiza según los requerimientos.',
-  '{"language": "auto", "business_hours": "Lun-Vie 9:00-18:00", "location": "Colombia", "website": "https://lumenxlabs.com.co"}'
+  E'SOBRE LUMENX LABS:\nLumenX Labs es una empresa de desarrollo y automatización de software, diseño de páginas web premium y soluciones digitales a medida. Fundada por Christian Henao, un desarrollador con 5+ años de experiencia en múltiples campos.\n\nSERVICIOS:\n- Desarrollo de software a medida (web, móvil, APIs)\n- Automatización de procesos y flujos de trabajo\n- Diseño y desarrollo de páginas web premium\n- Integración con APIs externas (WhatsApp, pagos, CRM)\n- Chatbots e inteligencia artificial para negocios\n- Consultoría tecnológica\n\nIDIOMAS:\n- Español (principal)\n- Inglés\n\nCONTACTO:\n- Web: lumenxlabs.com.co\n- Líder: Christian Henao\n\nESTILO DE RESPUESTA:\n- Sé profesional pero cercano.\n- Habla de los servicios con confianza.\n- Si el cliente quiere un presupuesto, pide detalles del proyecto y indica que el equipo lo contactará pronto.\n- Menciona que LumenX Labs trabaja con tecnologías modernas (React, Next.js, NestJS, Python, IA).\n- Si el cliente pregunta por precios, indica que cada proyecto es personalizado y se cotiza según los requerimientos.',
+  '{"language":"auto","business_hours":"Lun-Vie 9:00-18:00","location":"Colombia","website":"https://lumenxlabs.com.co"}'::jsonb
 );
 
 -- Servicios como "productos" para el catálogo
