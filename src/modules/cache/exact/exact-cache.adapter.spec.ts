@@ -101,9 +101,12 @@ describe('ExactCacheAdapter', () => {
       expect(result).toBeNull();
     });
 
-    it('returns null when historyLength > 1', async () => {
-      const result = await adapter.lookup('hola', makeCtx({ historyLength: 2 }));
-      expect(result).toBeNull();
+    it('works regardless of historyLength (safety rail removed)', async () => {
+      const ctx = makeCtx({ historyLength: 2 });
+      await adapter.store('hola', { responseText: 'Hola!', toolCalls: [] }, ctx);
+      const result = await adapter.lookup('hola', ctx);
+      expect(result).not.toBeNull();
+      expect(result!.responseText).toBe('Hola!');
     });
 
     it('returns null on cache miss', async () => {

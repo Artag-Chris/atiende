@@ -31,7 +31,6 @@ export class ExactCacheAdapter implements ResponseCachePort {
     if (!this.features.cache.exact) return false;
     if (ctx.mayInvolveStatefulTool) return false;
     if (ctx.hasPersonalInfo) return false;
-    if (ctx.historyLength > 1) return false;
     return true;
   }
 
