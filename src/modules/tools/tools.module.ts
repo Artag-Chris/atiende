@@ -6,7 +6,6 @@ import { SearchCatalogTool } from './search-catalog/search-catalog.tool';
 import { GetProductTool } from './get-product/get-product.tool';
 import { CreateOrderTool } from './create-order/create-order.tool';
 import { SearchKnowledgeTool } from './search-knowledge/search-knowledge.tool';
-import { ProductRepository } from '@modules/persistence/postgres/product.repository';
 
 @Global()
 @Module({
@@ -17,7 +16,6 @@ import { ProductRepository } from '@modules/persistence/postgres/product.reposit
     GetProductTool,
     CreateOrderTool,
     SearchKnowledgeTool,
-    ProductRepository,
     {
       provide: TOOL_MODULES_TOKEN,
       useFactory: (

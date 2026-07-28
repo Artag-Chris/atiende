@@ -12,6 +12,7 @@ import { ConversationRepository } from './conversation.repository';
 import { MessageRepository } from './message.repository';
 import { AgentRunRepository } from './agent-run.repository';
 import { InboundMessageRepository } from './inbound-message.repository';
+import { ProductRepository } from './product.repository';
 
 @Global()
 @Module({
@@ -22,6 +23,7 @@ import { InboundMessageRepository } from './inbound-message.repository';
     MessageRepository,
     AgentRunRepository,
     InboundMessageRepository,
+    ProductRepository,
     {
       provide: AGENT_RUN_REPOSITORY_TOKEN,
       useExisting: AgentRunRepository,
@@ -49,6 +51,7 @@ import { InboundMessageRepository } from './inbound-message.repository';
     MessageRepository,
     AgentRunRepository,
     InboundMessageRepository,
+    ProductRepository,
     AGENT_RUN_REPOSITORY_TOKEN,
     BUSINESS_REPOSITORY_TOKEN,
     CONVERSATION_REPOSITORY_TOKEN,
