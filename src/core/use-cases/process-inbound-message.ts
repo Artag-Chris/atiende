@@ -71,10 +71,14 @@ export class ProcessInboundMessageUseCase {
     }
 
     if (business && this.responsePolicy) {
-      const scope = await this.responsePolicy.checkScope(business.id, message.text, business.name ?? undefined);
-      if (!scope.allowed) {
-        this.logger.log(`Out-of-scope message blocked: "${message.text.slice(0, 60)}..."`);
-        return { responded: true, responseText: scope.rejectionMessage };
+      try {
+        const scope = await this.responsePolicy.checkScope(business.id, message.text, business.name ?? undefined);
+        if (!scope.allowed) {
+          this.logger.log(`Out-of-scope message blocked: "${message.text.slice(0, 60)}..."`);
+          return { responded: true, responseText: scope.rejectionMessage };
+        }
+      } catch (error) {
+        this.logger.warn(`Scope check failed (allowing message through): ${error}`);
       }
     }
 
