@@ -28,7 +28,7 @@ const extractorsProviders: Provider[] = [
     ...extractorsProviders,
     {
       provide: CHUNKER_TOKEN,
-      useClass: TextChunker,
+      useFactory: () => new TextChunker(),
     },
   ],
   exports: [KnowledgeService],
