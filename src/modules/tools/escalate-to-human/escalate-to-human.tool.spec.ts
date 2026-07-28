@@ -42,10 +42,7 @@ describe('EscalateToHumanTool', () => {
   });
 
   it('escalates with custom urgency', async () => {
-    const result = await tool.execute(
-      { reason: 'Fraude detectado', urgency: 'high' },
-      ctx,
-    );
+    const result = await tool.execute({ reason: 'Fraude detectado', urgency: 'high' }, ctx);
 
     expect(result.isError).toBeFalsy();
     const parsed = JSON.parse(result.output);
@@ -58,10 +55,7 @@ describe('EscalateToHumanTool', () => {
   });
 
   it('rejects invalid urgency', async () => {
-    const result = await tool.execute(
-      { reason: 'Test', urgency: 'critical' },
-      ctx,
-    );
+    const result = await tool.execute({ reason: 'Test', urgency: 'critical' }, ctx);
     expect(result.isError).toBe(true);
   });
 

@@ -14,7 +14,10 @@ export interface ScopeCheckResult {
 export interface ResponsePolicyPort {
   checkScope(businessId: string, message: string, businessName?: string): Promise<ScopeCheckResult>;
   buildSystemPromptExtras(businessName?: string, tone?: ToneConfig): string;
-  validateResponse(response: string, context: { message: string; businessName?: string }): {
+  validateResponse(
+    response: string,
+    context: { message: string; businessName?: string },
+  ): {
     approved: boolean;
     modified?: string;
     reason?: string;

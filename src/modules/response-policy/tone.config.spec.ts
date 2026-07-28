@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildTonePrompt, HALLUCINATION_PREVENTION_PROMPT, SCOPE_PROMPT, TONE_PRESETS } from './tone.config';
+import {
+  buildTonePrompt,
+  HALLUCINATION_PREVENTION_PROMPT,
+  SCOPE_PROMPT,
+  TONE_PRESETS,
+} from './tone.config';
 
 describe('buildTonePrompt', () => {
   it('generates warm tone for friendly preset', () => {

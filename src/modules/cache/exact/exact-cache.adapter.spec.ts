@@ -6,43 +6,27 @@ import { ExactCacheAdapter } from './exact-cache.adapter';
 
 function createMockRedis(): Redis {
   const store = new Map<string, string>();
-  const sets = new Map<string, Set<string>>();
-
-  function pipeline() {
-    const ops: Array<() => void> = [];
-    const pipe = {
-      setex(key: string, _ttl: number, value: string) {
-        ops.push(() => { store.set(key, value); });
-        return pipe;
-      },
-      sadd(key: string, member: string) {
-        ops.push(() => {
-          if (!sets.has(key)) sets.set(key, new Set());
-          sets.get(key)!.add(member);
-        });
-        return pipe;
-      },
-      del(...keys: string[]) {
-        ops.push(() => {
-          for (const k of keys) { store.delete(k); sets.delete(k); }
-        });
-        return pipe;
-      },
-      exec() { ops.forEach((fn) => fn()); return Promise.resolve([]); },
-    };
-    return pipe;
-  }
 
   return {
     get: vi.fn(async (key: string) => store.get(key) ?? null),
-    setex: vi.fn(async (key: string, _ttl: number, value: string) => { store.set(key, value); return 'OK'; }),
+    setex: vi.fn(async (key: string, _ttl: number, value: string) => {
+      store.set(key, value);
+      return 'OK';
+    }),
     del: vi.fn(async (...keys: string[]) => {
       let count = 0;
-      for (const k of keys) { if (store.delete(k)) count++; }
+      for (const k of keys) {
+        if (store.delete(k)) count++;
+      }
       return count;
     }),
-    smembers: vi.fn(async (key: string) => [...(sets.get(key) ?? [])]),
-    pipeline,
+    scan: vi.fn(async (cursor: string | number, ...args: string[]) => {
+      const matchIdx = args.indexOf('MATCH');
+      const pattern = matchIdx >= 0 ? args[matchIdx + 1] : '*';
+      const prefix = pattern.replace(/\*$/, '');
+      const matching = [...store.keys()].filter((k) => k.startsWith(prefix));
+      return ['0', matching];
+    }),
   } as unknown as Redis;
 }
 
@@ -53,7 +37,13 @@ function createFeatures(overrides?: Partial<Features>): Features {
     tools: { catalog: true, knowledgeSearch: true, orders: true, info: true, escalation: true },
     embeddings: { provider: 'openai' },
     ai: { promptCaching: true, compaction: false, adaptiveThinking: false, scopeGuard: false },
-    cache: { exact: true, semantic: false, semanticMinSimilarity: 0.95, semanticTtlSeconds: 1800, exactTtlSeconds: 1800 },
+    cache: {
+      exact: true,
+      semantic: false,
+      semanticMinSimilarity: 0.95,
+      semanticTtlSeconds: 1800,
+      exactTtlSeconds: 1800,
+    },
     observability: { otel: false, sentry: false },
     ...overrides,
   };
@@ -132,8 +122,16 @@ describe('ExactCacheAdapter', () => {
     });
 
     it('is scoped by businessId', async () => {
-      await adapter.store('hola', { responseText: 'Hola biz-1!' }, makeCtx({ businessId: 'biz-1' }));
-      await adapter.store('hola', { responseText: 'Hola biz-2!' }, makeCtx({ businessId: 'biz-2' }));
+      await adapter.store(
+        'hola',
+        { responseText: 'Hola biz-1!' },
+        makeCtx({ businessId: 'biz-1' }),
+      );
+      await adapter.store(
+        'hola',
+        { responseText: 'Hola biz-2!' },
+        makeCtx({ businessId: 'biz-2' }),
+      );
       const result = await adapter.lookup('hola', makeCtx({ businessId: 'biz-1' }));
       expect(result!.responseText).toBe('Hola biz-1!');
     });
@@ -156,7 +154,11 @@ describe('ExactCacheAdapter', () => {
     });
 
     it('skips store when mayInvolveStatefulTool is true', async () => {
-      await adapter.store('hola', { responseText: 'Hola!' }, makeCtx({ mayInvolveStatefulTool: true }));
+      await adapter.store(
+        'hola',
+        { responseText: 'Hola!' },
+        makeCtx({ mayInvolveStatefulTool: true }),
+      );
       const result = await adapter.lookup('hola', makeCtx());
       expect(result).toBeNull();
     });

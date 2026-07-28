@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import type { Product, Prisma } from '@prisma/client';
+import type { Product } from '@prisma/client';
 
 export interface ProductSearchResult {
   product: Product;
@@ -17,7 +17,10 @@ export class ProductRepository {
     return this.prisma.product.findUnique({ where: { id } });
   }
 
-  async findByBusiness(businessId: string, options?: { limit?: number; offset?: number }): Promise<Product[]> {
+  async findByBusiness(
+    businessId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<Product[]> {
     return this.prisma.product.findMany({
       where: { businessId, active: true },
       orderBy: { name: 'asc' },
@@ -35,9 +38,7 @@ export class ProductRepository {
     const threshold = options?.threshold ?? 0.7;
 
     const vectorStr = `[${embedding.join(',')}]`;
-    const results = await this.prisma.$queryRaw<
-      Array<{ product_id: string; similarity: number }>
-    >`
+    const results = await this.prisma.$queryRaw<Array<{ product_id: string; similarity: number }>>`
       SELECT p.id as product_id, 
              1 - (pe.embedding <=> ${vectorStr}::vector) as similarity
       FROM product_embeddings pe

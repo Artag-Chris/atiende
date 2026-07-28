@@ -66,9 +66,7 @@ export async function bootstrap(): Promise<void> {
   if (rawOrigins.length === 0) {
     logger.warn('CORS_ALLOWED_ORIGINS is empty. Dashboard will not connect.');
   }
-  const corsOrigins = rawOrigins.includes('*')
-    ? '*'
-    : rawOrigins;
+  const corsOrigins = rawOrigins.includes('*') ? '*' : rawOrigins;
   app.enableCors({
     origin: corsOrigins,
     credentials: corsOrigins !== '*',

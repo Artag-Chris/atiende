@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
@@ -12,8 +13,11 @@ export class GroqAdapter implements LLMProviderPort {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(@Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig) {
-    const apiKey = process.env.GROQ_API_KEY;
+  constructor(
+    @Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig,
+    private readonly configService: ConfigService,
+  ) {
+    const apiKey = this.configService.get<string>('GROQ_API_KEY');
     if (!apiKey) {
       throw new Error('GROQ_API_KEY not configured');
     }
@@ -71,7 +75,8 @@ export class GroqAdapter implements LLMProviderPort {
         costUsd: cost.totalUsd,
         model: this.model,
       };
-    } catch (error: any) {
+    } catch (raw: unknown) {
+      const error = raw as { status?: number; message?: string };
       if (error?.status === 400 && tools?.length) {
         this.logger.warn(`[Groq] Tool call failed, retrying without tools: ${error.message}`);
         const response = await this.client.chat.completions.create({
@@ -80,7 +85,6 @@ export class GroqAdapter implements LLMProviderPort {
           messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
         });
         const choice = response.choices[0];
-        const latencyMs = Date.now() - startTime;
         const usage = {
           inputTokens: response.usage?.prompt_tokens ?? 0,
           outputTokens: response.usage?.completion_tokens ?? 0,

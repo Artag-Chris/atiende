@@ -40,7 +40,12 @@ export class UsageMetricsLogger {
     );
   }
 
-  logBudgetExceeded(businessId: string, conversationId: string, currentCost: number, limit: number): void {
+  logBudgetExceeded(
+    businessId: string,
+    conversationId: string,
+    currentCost: number,
+    limit: number,
+  ): void {
     this.logger.warn(
       JSON.stringify({
         event: 'budget_exceeded',

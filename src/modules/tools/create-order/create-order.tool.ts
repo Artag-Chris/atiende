@@ -90,11 +90,15 @@ export class CreateOrderTool implements ToolModulePort {
       );
 
       return {
-        output: JSON.stringify({
-          status: 'created',
-          message: `¡Pedido confirmado! ${quantity}x "${product.name}" por $${order.totalPrice.toFixed(2)}. Tu número de orden es ${order.orderId}.`,
-          order,
-        }, null, 2),
+        output: JSON.stringify(
+          {
+            status: 'created',
+            message: `¡Pedido confirmado! ${quantity}x "${product.name}" por $${order.totalPrice.toFixed(2)}. Tu número de orden es ${order.orderId}.`,
+            order,
+          },
+          null,
+          2,
+        ),
         meta: { latencyMs: Date.now() - start, rowsAffected: 1 },
       };
     } catch (error) {

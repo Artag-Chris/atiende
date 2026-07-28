@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { z } from 'zod';
 import type { ToolModulePort, ToolExecutionResult } from '@core/ports/tool-module.port';
 import type { ToolDefinition, TurnContext } from '@core/domain/types';
@@ -28,7 +28,8 @@ export class SearchKnowledgeTool implements ToolModulePort {
         properties: {
           query: {
             type: 'string',
-            description: 'Consulta del cliente (ej: "política de devolución", "cómo activar garantía", "horarios")',
+            description:
+              'Consulta del cliente (ej: "política de devolución", "cómo activar garantía", "horarios")',
           },
           limit: {
             type: 'number',

@@ -15,7 +15,9 @@ export class GetBusinessInfoTool implements ToolModulePort {
   readonly mutatesState = false;
   private readonly logger = new Logger(GetBusinessInfoTool.name);
 
-  constructor(@Inject(BUSINESS_REPOSITORY_TOKEN) private readonly businessRepo: BusinessRepositoryPort) {}
+  constructor(
+    @Inject(BUSINESS_REPOSITORY_TOKEN) private readonly businessRepo: BusinessRepositoryPort,
+  ) {}
 
   getDefinition(): ToolDefinition {
     return {

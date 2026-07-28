@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
-import { QUEUE_NAMES, buildRedisConnection, buildQueueOptions, buildWorkerOptions } from '@config/queue.config';
+import { QUEUE_NAMES } from '@config/queue.config';
 import { InboundProcessor } from './inbound.processor';
 
 @Global()
@@ -16,6 +16,7 @@ import { InboundProcessor } from './inbound.processor';
           password: config.get('REDIS_PASSWORD') || undefined,
           tls: config.get('REDIS_TLS') === 'true' ? {} : undefined,
           maxRetriesPerRequest: null,
+          enableReadyCheck: false,
         },
         prefix: config.get('BULLMQ_QUEUE_PREFIX', 'atiende:dev:queue'),
       }),

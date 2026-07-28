@@ -1,5 +1,16 @@
 import {
-  Controller, Post, Get, Delete, Param, Body, UploadedFile, UseInterceptors, ParseFilePipe, MaxFileSizeValidator, FileTypeValidator, Logger,
+  Controller,
+  Post,
+  Get,
+  Delete,
+  Param,
+  Body,
+  UploadedFile,
+  UseInterceptors,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KnowledgeService } from './knowledge.service';
@@ -11,13 +22,16 @@ export class KnowledgeController {
   constructor(private readonly knowledgeService: KnowledgeService) {}
 
   @Post('text')
-  async ingestText(@Body() body: {
-    businessId: string;
-    kind: 'FAQ' | 'POLICY' | 'PDF_CATALOG' | 'MANUAL' | 'NOTES' | 'OTHER';
-    title: string;
-    source: string;
-    text: string;
-  }) {
+  async ingestText(
+    @Body()
+    body: {
+      businessId: string;
+      kind: 'FAQ' | 'POLICY' | 'PDF_CATALOG' | 'MANUAL' | 'NOTES' | 'OTHER';
+      title: string;
+      source: string;
+      text: string;
+    },
+  ) {
     const docId = await this.knowledgeService.ingestFromText(body);
     return { documentId: docId, status: 'indexed' };
   }
@@ -32,8 +46,10 @@ export class KnowledgeController {
           new FileTypeValidator({ fileType: /(pdf|csv|text\/csv)$/ }),
         ],
       }),
-    ) file: Express.Multer.File,
-    @Body() body: {
+    )
+    file: Express.Multer.File,
+    @Body()
+    body: {
       businessId: string;
       kind: 'FAQ' | 'POLICY' | 'PDF_CATALOG' | 'MANUAL' | 'NOTES' | 'OTHER';
       title?: string;

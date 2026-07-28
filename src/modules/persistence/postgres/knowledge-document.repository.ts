@@ -48,13 +48,21 @@ export class KnowledgeDocumentRepository {
     });
   }
 
-  async updateStatus(id: string, status: string, extra?: { chunkCount?: number; errorMessage?: string }): Promise<void> {
+  async updateStatus(
+    id: string,
+    status: string,
+    extra?: { chunkCount?: number; errorMessage?: string },
+  ): Promise<void> {
     await this.prisma.knowledgeDocument.update({
       where: { id },
       data: {
         status: status as KnowledgeStatus,
-        ...(status === 'INDEXED' ? { indexedAt: new Date(), chunkCount: extra?.chunkCount ?? 0 } : {}),
-        ...(status === 'FAILED' ? { errorMessage: extra?.errorMessage, indexedAt: null, chunkCount: 0 } : {}),
+        ...(status === 'INDEXED'
+          ? { indexedAt: new Date(), chunkCount: extra?.chunkCount ?? 0 }
+          : {}),
+        ...(status === 'FAILED'
+          ? { errorMessage: extra?.errorMessage, indexedAt: null, chunkCount: 0 }
+          : {}),
       },
     });
   }

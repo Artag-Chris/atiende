@@ -42,16 +42,19 @@ describe('GetBusinessInfoTool', () => {
   });
 
   it('returns full info for topic=general', async () => {
-    const result = await tool.execute({ topic: 'general' }, {
-      businessId: 'biz-1',
-      conversationId: 'conv-1',
-      customerPhone: '+573001234567',
-      channel: 'whatsapp',
-      historyLength: 0,
-      hasPersonalInfo: false,
-      mayInvolveStatefulTool: false,
-      businessConfig: {},
-    });
+    const result = await tool.execute(
+      { topic: 'general' },
+      {
+        businessId: 'biz-1',
+        conversationId: 'conv-1',
+        customerPhone: '+573001234567',
+        channel: 'whatsapp',
+        historyLength: 0,
+        hasPersonalInfo: false,
+        mayInvolveStatefulTool: false,
+        businessConfig: {},
+      },
+    );
 
     expect(result.isError).toBeFalsy();
     const info = JSON.parse(result.output);
@@ -60,16 +63,19 @@ describe('GetBusinessInfoTool', () => {
   });
 
   it('filters by topic', async () => {
-    const result = await tool.execute({ topic: 'website' }, {
-      businessId: 'biz-1',
-      conversationId: 'conv-1',
-      customerPhone: '+573001234567',
-      channel: 'whatsapp',
-      historyLength: 0,
-      hasPersonalInfo: false,
-      mayInvolveStatefulTool: false,
-      businessConfig: {},
-    });
+    const result = await tool.execute(
+      { topic: 'website' },
+      {
+        businessId: 'biz-1',
+        conversationId: 'conv-1',
+        customerPhone: '+573001234567',
+        channel: 'whatsapp',
+        historyLength: 0,
+        hasPersonalInfo: false,
+        mayInvolveStatefulTool: false,
+        businessConfig: {},
+      },
+    );
 
     expect(result.isError).toBeFalsy();
     const info = JSON.parse(result.output);
@@ -78,16 +84,19 @@ describe('GetBusinessInfoTool', () => {
   });
 
   it('returns error for invalid input', async () => {
-    const result = await tool.execute({ topic: '' }, {
-      businessId: 'biz-1',
-      conversationId: 'conv-1',
-      customerPhone: '+573001234567',
-      channel: 'whatsapp',
-      historyLength: 0,
-      hasPersonalInfo: false,
-      mayInvolveStatefulTool: false,
-      businessConfig: {},
-    });
+    const result = await tool.execute(
+      { topic: '' },
+      {
+        businessId: 'biz-1',
+        conversationId: 'conv-1',
+        customerPhone: '+573001234567',
+        channel: 'whatsapp',
+        historyLength: 0,
+        hasPersonalInfo: false,
+        mayInvolveStatefulTool: false,
+        businessConfig: {},
+      },
+    );
 
     expect(result.isError).toBe(true);
   });
@@ -97,31 +106,37 @@ describe('GetBusinessInfoTool', () => {
       findById: () => Promise.resolve(null),
     });
 
-    const result = await toolNotFound.execute({ topic: 'general' }, {
-      businessId: 'nonexistent',
-      conversationId: 'conv-1',
-      customerPhone: '+573001234567',
-      channel: 'whatsapp',
-      historyLength: 0,
-      hasPersonalInfo: false,
-      mayInvolveStatefulTool: false,
-      businessConfig: {},
-    });
+    const result = await toolNotFound.execute(
+      { topic: 'general' },
+      {
+        businessId: 'nonexistent',
+        conversationId: 'conv-1',
+        customerPhone: '+573001234567',
+        channel: 'whatsapp',
+        historyLength: 0,
+        hasPersonalInfo: false,
+        mayInvolveStatefulTool: false,
+        businessConfig: {},
+      },
+    );
 
     expect(result.isError).toBe(true);
   });
 
   it('returns friendly message for unmatched topic', async () => {
-    const result = await tool.execute({ topic: 'precios' }, {
-      businessId: 'biz-1',
-      conversationId: 'conv-1',
-      customerPhone: '+573001234567',
-      channel: 'whatsapp',
-      historyLength: 0,
-      hasPersonalInfo: false,
-      mayInvolveStatefulTool: false,
-      businessConfig: {},
-    });
+    const result = await tool.execute(
+      { topic: 'precios' },
+      {
+        businessId: 'biz-1',
+        conversationId: 'conv-1',
+        customerPhone: '+573001234567',
+        channel: 'whatsapp',
+        historyLength: 0,
+        hasPersonalInfo: false,
+        mayInvolveStatefulTool: false,
+        businessConfig: {},
+      },
+    );
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('precios');

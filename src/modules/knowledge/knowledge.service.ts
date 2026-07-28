@@ -5,11 +5,7 @@ import { KnowledgeChunkRepository } from '@modules/persistence/postgres/knowledg
 import type { DocumentExtractorPort } from '@core/ports/document-extractor.port';
 import type { ChunkerPort } from '@core/ports/chunker.port';
 import type { EmbeddingProviderPort } from '@core/ports/embedding-provider.port';
-import {
-  DOCUMENT_EXTRACTORS_TOKEN,
-  CHUNKER_TOKEN,
-  EMBEDDING_PROVIDER_TOKEN,
-} from '@core/tokens';
+import { DOCUMENT_EXTRACTORS_TOKEN, CHUNKER_TOKEN, EMBEDDING_PROVIDER_TOKEN } from '@core/tokens';
 
 @Injectable()
 export class KnowledgeService {
@@ -51,7 +47,9 @@ export class KnowledgeService {
     try {
       await this.saveChunks(doc.id, data.businessId, data.kind, rawChunks);
     } catch (error) {
-      await this.docRepo.updateStatus(doc.id, 'FAILED', { errorMessage: `Embedding failed: ${(error as Error).message}` });
+      await this.docRepo.updateStatus(doc.id, 'FAILED', {
+        errorMessage: `Embedding failed: ${(error as Error).message}`,
+      });
       throw error;
     }
 
@@ -82,9 +80,7 @@ export class KnowledgeService {
 
     await this.docRepo.updateStatus(doc.id, 'EXTRACTING');
 
-    const extractor = this.extractors.find((e) =>
-      e.supportedMimeTypes.includes(data.mimeType),
-    );
+    const extractor = this.extractors.find((e) => e.supportedMimeTypes.includes(data.mimeType));
 
     if (!extractor) {
       const msg = `No extractor for mime type ${data.mimeType}`;
@@ -116,7 +112,9 @@ export class KnowledgeService {
       const totalChunks = await this.chunkRepo.countByDocument(doc.id);
       await this.docRepo.updateStatus(doc.id, 'INDEXED', { chunkCount: totalChunks });
     } catch (error) {
-      await this.docRepo.updateStatus(doc.id, 'FAILED', { errorMessage: `Embedding failed: ${(error as Error).message}` });
+      await this.docRepo.updateStatus(doc.id, 'FAILED', {
+        errorMessage: `Embedding failed: ${(error as Error).message}`,
+      });
       throw error;
     }
 
@@ -150,9 +148,7 @@ export class KnowledgeService {
     for (let i = 0; i < rawChunks.length; i += CONCURRENCY) {
       const batch = rawChunks.slice(i, i + CONCURRENCY);
       const embeddings = await Promise.all(
-        batch.map((raw) =>
-          this.embedder.embed([raw.text]).then(([vec]) => vec),
-        ),
+        batch.map((raw) => this.embedder.embed([raw.text]).then(([vec]) => vec)),
       );
 
       for (let j = 0; j < batch.length; j++) {

@@ -17,7 +17,9 @@ export class InboundProcessor extends WorkerHost {
   }
 
   async process(job: Job<InboundMessageJobData>): Promise<void> {
-    this.logger.log(`Processing inbound message job ${job.id} for business=${job.data.businessId} phone=${job.data.customerPhone}`);
+    this.logger.log(
+      `Processing inbound message job ${job.id} for business=${job.data.businessId} phone=${job.data.customerPhone}`,
+    );
 
     try {
       const result = await this.processInbound.execute({

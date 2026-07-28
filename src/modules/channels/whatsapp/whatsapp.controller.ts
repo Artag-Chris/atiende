@@ -28,7 +28,8 @@ export class WhatsAppController {
   constructor(
     configService: ConfigService,
     private readonly whatsapp: WhatsAppAdapter,
-    @InjectQueue(QUEUE_NAMES.INBOUND_MESSAGE) private readonly inboundQueue: Queue<InboundMessageJobData>,
+    @InjectQueue(QUEUE_NAMES.INBOUND_MESSAGE)
+    private readonly inboundQueue: Queue<InboundMessageJobData>,
     @Inject(REDIS_CLIENT_TOKEN) private readonly redis: Redis,
   ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');

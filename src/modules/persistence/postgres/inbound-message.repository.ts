@@ -23,10 +23,7 @@ export class InboundMessageRepository {
         },
       });
     } catch (error: unknown) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         this.logger.debug(`Duplicate inbound message ${data.externalMessageId}, fetching existing`);
         const existing = await this.prisma.inboundMessage.findFirst({
           where: {

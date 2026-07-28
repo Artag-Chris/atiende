@@ -10,7 +10,10 @@ export interface ValidationResult {
 export class ResponseValidator {
   private readonly logger = new Logger(ResponseValidator.name);
 
-  validate(response: string, context: { message: string; businessName?: string }): ValidationResult {
+  validate(
+    response: string,
+    context: { message: string; businessName?: string },
+  ): ValidationResult {
     if (!response || response.trim().length === 0) {
       return { approved: false, reason: 'Respuesta vacía' };
     }
@@ -28,7 +31,9 @@ export class ResponseValidator {
 
     for (const signal of hallucinationSignals) {
       if (signal.test(lower)) {
-        this.logger.warn(`Hallucination signal detected: "${signal.source}" in: "${response.slice(0, 100)}..."`);
+        this.logger.warn(
+          `Hallucination signal detected: "${signal.source}" in: "${response.slice(0, 100)}..."`,
+        );
         return {
           approved: false,
           reason: 'Posible alucinación detectada',

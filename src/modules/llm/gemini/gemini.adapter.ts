@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type Content, type Part } from '@google/generative-ai';
 import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
 import { calculateCost, type AIConfig } from '@config/ai.config';
@@ -81,12 +81,8 @@ export class GeminiAdapter implements LLMProviderPort {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private translateMessages(
-    messages: ChatMessage[],
-  ): any[] {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any[] = [];
+  private translateMessages(messages: ChatMessage[]): Content[] {
+    const result: Content[] = [];
 
     for (const msg of messages) {
       if (msg.role === 'user') {
@@ -98,7 +94,7 @@ export class GeminiAdapter implements LLMProviderPort {
         const textContent = this.extractTextContent(msg.content);
         const toolUseBlocks = msg.content.filter((b) => b.type === 'tool_use');
         if (toolUseBlocks.length > 0) {
-          const parts: Array<{ text: string } | { functionCall: Record<string, unknown> }> = [];
+          const parts: Part[] = [];
           if (textContent) {
             parts.push({ text: textContent });
           }

@@ -40,12 +40,24 @@ function createMockTool(name = 'test_tool'): ToolModulePort {
 }
 
 const defaultConfig: AIConfig = {
-  primary: { provider: 'mock', model: 'mock-1', effort: 'medium', maxTokens: 1024, timeoutMs: 5000, maxRetries: 0 },
+  primary: {
+    provider: 'mock',
+    model: 'mock-1',
+    effort: 'medium',
+    maxTokens: 1024,
+    timeoutMs: 5000,
+    maxRetries: 0,
+  },
   fallback: null,
   promptCaching: { enabled: false, defaultTtl: '5m', minTokensToCache: 2048 },
   compaction: { enabled: false, triggerTokenThreshold: 100000 },
   adaptiveThinking: false,
-  agent: { maxToolIterations: 8, maxConversationTokens: 100000, budgetUsdPerConversation: 0.5, targetLatencyP95Ms: 5000 },
+  agent: {
+    maxToolIterations: 8,
+    maxConversationTokens: 100000,
+    budgetUsdPerConversation: 0.5,
+    targetLatencyP95Ms: 5000,
+  },
 };
 
 describe('AgentService', () => {
@@ -73,7 +85,12 @@ describe('AgentService', () => {
 
   it('executes tool and makes final LLM call', async () => {
     const tool = createMockTool();
-    const serviceWithTools = new AgentService(llm as unknown as LLMProviderPort, defaultConfig, agentRunRepo, [tool]);
+    const serviceWithTools = new AgentService(
+      llm as unknown as LLMProviderPort,
+      defaultConfig,
+      agentRunRepo,
+      [tool],
+    );
 
     let callCount = 0;
     llm.chat = vi.fn().mockImplementation(() => {
@@ -111,7 +128,12 @@ describe('AgentService', () => {
   it('enforces max tool iterations then makes final LLM call', async () => {
     const tool = createMockTool();
     const config = { ...defaultConfig, agent: { ...defaultConfig.agent, maxToolIterations: 2 } };
-    const serviceLimited = new AgentService(llm as unknown as LLMProviderPort, config, agentRunRepo, [tool]);
+    const serviceLimited = new AgentService(
+      llm as unknown as LLMProviderPort,
+      config,
+      agentRunRepo,
+      [tool],
+    );
 
     let callCount = 0;
     llm.chat = vi.fn().mockImplementation(() => {

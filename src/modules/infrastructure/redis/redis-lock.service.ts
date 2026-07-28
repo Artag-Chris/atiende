@@ -16,7 +16,6 @@ export class RedisLockService implements OnModuleDestroy {
   async acquire(key: string, ttlMs = DEFAULT_LOCK_TTL_MS): Promise<string | null> {
     const lockValue = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const fullKey = `${LOCK_PREFIX}${key}`;
-    const ttlSec = Math.ceil(ttlMs / 1000);
 
     const result = await this.redis.set(fullKey, lockValue, 'PX', ttlMs, 'NX');
     return result === 'OK' ? lockValue : null;

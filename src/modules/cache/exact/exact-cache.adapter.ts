@@ -1,7 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import Redis from 'ioredis';
-import type { ResponseCachePort, CacheHit, CacheableResponse } from '@core/ports/response-cache.port';
+import type {
+  ResponseCachePort,
+  CacheHit,
+  CacheableResponse,
+} from '@core/ports/response-cache.port';
 import type { TurnContext } from '@core/domain/types';
 import { REDIS_CLIENT_TOKEN, FEATURES_TOKEN } from '@core/tokens';
 import type { Features } from '@config/features';
@@ -23,8 +27,8 @@ export class ExactCacheAdapter implements ResponseCachePort {
     return `${this.prefix}${businessId}:${hash}`;
   }
 
-  private keysSetKey(businessId: string): string {
-    return `${this.prefix}keys:${businessId}`;
+  private scanPattern(businessId: string): string {
+    return `${this.prefix}${businessId}:*`;
   }
 
   private isCacheable(ctx: TurnContext): boolean {
@@ -66,10 +70,7 @@ export class ExactCacheAdapter implements ResponseCachePort {
     });
 
     await this.redis
-      .pipeline()
       .setex(key, this.features.cache.exactTtlSeconds, payload)
-      .sadd(this.keysSetKey(ctx.businessId), key)
-      .exec()
       .catch((err: Error) => {
         this.logger.warn(`Failed to store cache: ${err.message}`);
       });
@@ -77,20 +78,29 @@ export class ExactCacheAdapter implements ResponseCachePort {
   }
 
   async invalidate(businessId: string): Promise<number> {
-    const setKey = this.keysSetKey(businessId);
-    const members = await this.redis.smembers(setKey).catch(() => [] as string[]);
-    if (members.length === 0) return 0;
+    const pattern = this.scanPattern(businessId);
+    const keysToDelete: string[] = [];
+    let cursor = '0';
+    try {
+      do {
+        const [nextCursor, keys] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
+        keysToDelete.push(...keys);
+      } while (cursor !== '0');
+    } catch (err) {
+      this.logger.warn(`Failed to scan cache keys: ${err}`);
+      return 0;
+    }
 
-    await this.redis
-      .pipeline()
-      .del(...members)
-      .del(setKey)
-      .exec()
-      .catch((err: Error) => {
-        this.logger.warn(`Failed to invalidate cache: ${err.message}`);
-      });
+    if (keysToDelete.length === 0) return 0;
 
-    this.logger.log(`Invalidated ${members.length} exact cache entries for business=${businessId}`);
-    return members.length;
+    await this.redis.del(...keysToDelete).catch((err: Error) => {
+      this.logger.warn(`Failed to invalidate cache: ${err.message}`);
+    });
+
+    this.logger.log(
+      `Invalidated ${keysToDelete.length} exact cache entries for business=${businessId}`,
+    );
+    return keysToDelete.length;
   }
 }

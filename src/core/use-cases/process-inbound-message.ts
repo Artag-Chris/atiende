@@ -16,6 +16,7 @@ import {
   BUSINESS_REPOSITORY_TOKEN,
   RESPONSE_POLICY_TOKEN,
   EXACT_CACHE_TOKEN,
+  SEMANTIC_CACHE_TOKEN,
 } from '@core/tokens';
 
 const DEFAULT_SYSTEM_PROMPT = `Eres un asistente conversacional de IA. Atiendes clientes por WhatsApp con calidez y eficiencia.
@@ -56,12 +57,19 @@ export class ProcessInboundMessageUseCase {
     private readonly agentService: AgentService,
     @Inject(AGENT_RUN_REPOSITORY_TOKEN) private readonly agentRunRepo: AgentRunRepositoryPort,
     @Inject(BUSINESS_REPOSITORY_TOKEN) private readonly businessRepo: BusinessRepositoryPort,
-    @Inject(CONVERSATION_REPOSITORY_TOKEN) private readonly conversationRepo: ConversationRepositoryPort,
+    @Inject(CONVERSATION_REPOSITORY_TOKEN)
+    private readonly conversationRepo: ConversationRepositoryPort,
     @Inject(MESSAGE_REPOSITORY_TOKEN) private readonly messageRepo: MessageRepositoryPort,
-    @Inject(INBOUND_MESSAGE_REPOSITORY_TOKEN) private readonly inboundMessageRepo: InboundMessageRepositoryPort,
+    @Inject(INBOUND_MESSAGE_REPOSITORY_TOKEN)
+    private readonly inboundMessageRepo: InboundMessageRepositoryPort,
     @Optional() @Inject(RESPONSE_POLICY_TOKEN) private readonly responsePolicy?: ResponsePolicyPort,
     @Optional() @Inject(EXACT_CACHE_TOKEN) private readonly exactCache?: ResponseCachePort,
-  ) {}
+    @Optional() @Inject(SEMANTIC_CACHE_TOKEN) private readonly semanticCache?: ResponseCachePort,
+  ) {
+    if (!this.exactCache) this.logger.warn('EXACT_CACHE_TOKEN not provided — exact cache disabled');
+    if (!this.semanticCache)
+      this.logger.warn('SEMANTIC_CACHE_TOKEN not provided — semantic cache disabled');
+  }
 
   async execute(message: InboundMessage): Promise<ProcessResult> {
     this.logger.log(`Processing message from ${message.from}: "${message.text}"`);
@@ -75,7 +83,11 @@ export class ProcessInboundMessageUseCase {
 
     if (business && this.responsePolicy) {
       try {
-        const scope = await this.responsePolicy.checkScope(business.id, message.text, business.name ?? undefined);
+        const scope = await this.responsePolicy.checkScope(
+          business.id,
+          message.text,
+          business.name ?? undefined,
+        );
         if (!scope.allowed) {
           this.logger.log(`Out-of-scope message blocked: "${message.text.slice(0, 60)}..."`);
           return { responded: true, responseText: scope.rejectionMessage };
@@ -128,7 +140,11 @@ export class ProcessInboundMessageUseCase {
 
     const hasPII = this.hasPII(message.text);
 
-    if (this.exactCache && business && conversation) {
+    const cacheLayers = [this.exactCache, this.semanticCache].filter(
+      Boolean,
+    ) as ResponseCachePort[];
+
+    if (business && conversation) {
       const turnCtx: TurnContext = {
         businessId: business.id,
         conversationId: conversation.id,
@@ -139,8 +155,12 @@ export class ProcessInboundMessageUseCase {
         mayInvolveStatefulTool: false,
         businessConfig: {},
       };
-      try {
-        const cached = await this.exactCache.lookup(message.text, turnCtx);
+
+      for (const cache of cacheLayers) {
+        const cached = await cache.lookup(message.text, turnCtx).catch((err: Error) => {
+          this.logger.warn(`${cache.name} cache lookup error: ${err.message}`);
+          return null;
+        });
         if (cached) {
           let cachedText = cached.responseText;
           if (this.responsePolicy) {
@@ -154,15 +174,15 @@ export class ProcessInboundMessageUseCase {
             }
           }
           if (inboundMsgId) {
-            await this.inboundMessageRepo.markProcessed(inboundMsgId).catch(
-              (err: unknown) => this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
-            );
+            await this.inboundMessageRepo
+              .markProcessed(inboundMsgId)
+              .catch((err: unknown) =>
+                this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
+              );
           }
-          this.logger.log(`Exact cache HIT for business=${business.id}`);
+          this.logger.log(`${cache.name} cache HIT for business=${business.id}`);
           return { responded: true, responseText: cachedText };
         }
-      } catch (err) {
-        this.logger.warn(`Exact cache lookup error: ${err}`);
       }
     }
 
@@ -193,7 +213,7 @@ export class ProcessInboundMessageUseCase {
       }
     }
 
-    if (this.exactCache && business && conversation) {
+    if (business && conversation) {
       const turnCtx: TurnContext = {
         businessId: business.id,
         conversationId: conversation.id,
@@ -206,9 +226,14 @@ export class ProcessInboundMessageUseCase {
         ),
         businessConfig: {},
       };
-      this.exactCache
-        .store(message.text, { responseText: finalText, toolCalls: agentResponse.toolCallsMade }, turnCtx)
-        .catch((err: Error) => this.logger.warn(`Exact cache store error: ${err.message}`));
+      const cacheable = { responseText: finalText, toolCalls: agentResponse.toolCallsMade };
+      for (const cache of cacheLayers) {
+        cache
+          .store(message.text, cacheable, turnCtx)
+          .catch((err: Error) =>
+            this.logger.warn(`${cache.name} cache store error: ${err.message}`),
+          );
+      }
     }
 
     if (business && conversation) {
@@ -225,9 +250,11 @@ export class ProcessInboundMessageUseCase {
     }
 
     if (inboundMsgId) {
-      await this.inboundMessageRepo.markProcessed(inboundMsgId).catch(
-        (err: unknown) => this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
-      );
+      await this.inboundMessageRepo
+        .markProcessed(inboundMsgId)
+        .catch((err: unknown) =>
+          this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
+        );
     }
 
     this.logger.log(
@@ -271,11 +298,12 @@ export class ProcessInboundMessageUseCase {
           }
         } else if (m.role === 'ASSISTANT') {
           const tokenUsage = m.tokenUsage as Record<string, unknown> | undefined;
-          const toolCalls = (tokenUsage?.toolCalls as Array<{
-            name: string;
-            input: Record<string, unknown>;
-            output: string;
-          }>) ?? [];
+          const toolCalls =
+            (tokenUsage?.toolCalls as Array<{
+              name: string;
+              input: Record<string, unknown>;
+              output: string;
+            }>) ?? [];
 
           if (toolCalls.length > 0) {
             const assistantContent: Array<
@@ -343,7 +371,11 @@ export class ProcessInboundMessageUseCase {
   private hasPII(text: string): boolean {
     if (/[\w.-]+@[\w.-]+\.\w{2,}/i.test(text)) return true;
     if (/\b(?:CC|cc|cédula|cedula|nit|NIT)\s*[:.]?\s*\d{5,12}\b/i.test(text)) return true;
-    if (/\b(?:carrera|calle|cra|cl|av|avenida|transversal|diagonal|dirección|dir)\b/i.test(text) && /\d{2,}/.test(text)) return true;
+    if (
+      /\b(?:carrera|calle|cra|cl|av|avenida|transversal|diagonal|dirección|dir)\b/i.test(text) &&
+      /\d{2,}/.test(text)
+    )
+      return true;
     return false;
   }
 }

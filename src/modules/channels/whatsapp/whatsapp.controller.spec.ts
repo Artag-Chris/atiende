@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
+import type { RawBodyRequest } from '@nestjs/common';
 import type { Queue } from 'bullmq';
 import type Redis from 'ioredis';
 import { WhatsAppController } from './whatsapp.controller';
@@ -16,7 +17,10 @@ function createController(overrides?: {
     verifyWebhookSignature: vi.fn().mockReturnValue(true),
     parseInboundWebhook: overrides?.parseWebhook ?? vi.fn(),
   } as unknown as WhatsAppAdapter;
-  const config = { getOrThrow: () => 'test-token', get: () => 'development' } as unknown as ConfigService;
+  const config = {
+    getOrThrow: () => 'test-token',
+    get: () => 'development',
+  } as unknown as ConfigService;
 
   const controller = new WhatsAppController(config, whatsapp, queue, redis);
   return { controller, redis, queue, whatsapp };
@@ -25,37 +29,44 @@ function createController(overrides?: {
 describe('WhatsAppController', () => {
   const payload = {
     object: 'whatsapp_business_account',
-    entry: [{
-      id: '123',
-      changes: [{
-        value: {
-          messages: [{
-            from: '573001234567',
-            id: 'msg-1',
-            text: { body: 'Hello' },
-            type: 'text',
-          }],
-          metadata: { phone_number_id: '456' },
-        },
-      }],
-    }],
+    entry: [
+      {
+        id: '123',
+        changes: [
+          {
+            value: {
+              messages: [
+                {
+                  from: '573001234567',
+                  id: 'msg-1',
+                  text: { body: 'Hello' },
+                  type: 'text',
+                },
+              ],
+              metadata: { phone_number_id: '456' },
+            },
+          },
+        ],
+      },
+    ],
   };
 
-  const mockReq = (body: string) =>
-    ({ rawBody: Buffer.from(body) } as any);
+  const mockReq = (body: string) => ({ rawBody: Buffer.from(body) }) as RawBodyRequest<Request>;
 
   const externalAccountId = '573001234567';
   const externalMessageId = 'msg-1';
 
   function makeTextMessage() {
-    return [{
-      type: 'text' as const,
-      text: 'Hello',
-      from: externalAccountId,
-      externalMessageId,
-      externalAccountId,
-      rawPayload: {},
-    }];
+    return [
+      {
+        type: 'text' as const,
+        text: 'Hello',
+        from: externalAccountId,
+        externalMessageId,
+        externalAccountId,
+        rawPayload: {},
+      },
+    ];
   }
 
   describe('handleInbound - idempotency', () => {

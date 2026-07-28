@@ -4,8 +4,12 @@ import type { AgentRunRepositoryPort } from '@core/ports/agent-run-repository.po
 import type { ToolModulePort } from '@core/ports/tool-module.port';
 import type { AIConfig } from '@config/ai.config';
 import type { ChatMessage, ContentBlock } from '@core/domain/types';
-import { calculateCost } from '@config/ai.config';
-import { LLM_PROVIDER_TOKEN, AI_CONFIG_TOKEN, AGENT_RUN_REPOSITORY_TOKEN, TOOL_MODULES_TOKEN } from '@core/tokens';
+import {
+  LLM_PROVIDER_TOKEN,
+  AI_CONFIG_TOKEN,
+  AGENT_RUN_REPOSITORY_TOKEN,
+  TOOL_MODULES_TOKEN,
+} from '@core/tokens';
 
 export interface AgentInput {
   systemPrompt: string;
@@ -53,7 +57,9 @@ export class AgentService {
     const toolDefinitions = this.tools.map((t) => t.getDefinition());
 
     if (input.persistence?.conversationId && this.config.agent.budgetUsdPerConversation > 0) {
-      const currentCost = await this.agentRunRepo.getConversationCost(input.persistence.conversationId);
+      const currentCost = await this.agentRunRepo.getConversationCost(
+        input.persistence.conversationId,
+      );
       if (currentCost >= this.config.agent.budgetUsdPerConversation) {
         this.logger.warn(
           `[Agent] Budget exceeded for conversation ${input.persistence.conversationId}: $${currentCost.toFixed(6)} >= $${this.config.agent.budgetUsdPerConversation}`,
@@ -81,7 +87,8 @@ export class AgentService {
     let totalOutputTokens = 0;
     let lastText = '';
     let lastCostUsd = 0;
-    const toolCallsMade: Array<{ name: string; input: Record<string, unknown>; output: string }> = [];
+    const toolCallsMade: Array<{ name: string; input: Record<string, unknown>; output: string }> =
+      [];
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
       const response = await this.llm.chat({
@@ -116,13 +123,17 @@ export class AgentService {
           this.logger.warn(errorResult);
           messages.push({
             role: 'tool',
-            content: [{ type: 'tool_result', toolUseId: tc.id, content: errorResult, isError: true }],
+            content: [
+              { type: 'tool_result', toolUseId: tc.id, content: errorResult, isError: true },
+            ],
           });
           toolCallsMade.push({ name: tc.name, input: tc.input, output: errorResult });
           continue;
         }
 
-        this.logger.log(`[Agent] Calling tool "${tc.name}" with input: ${JSON.stringify(tc.input).slice(0, 200)}`);
+        this.logger.log(
+          `[Agent] Calling tool "${tc.name}" with input: ${JSON.stringify(tc.input).slice(0, 200)}`,
+        );
         const result = await this.executeToolWithTimeout(tool, tc, {
           businessId: input.persistence?.businessId ?? '',
           conversationId: input.persistence?.conversationId ?? '',
@@ -136,7 +147,14 @@ export class AgentService {
 
         messages.push({
           role: 'tool',
-          content: [{ type: 'tool_result', toolUseId: tc.id, content: result.output, isError: result.isError }],
+          content: [
+            {
+              type: 'tool_result',
+              toolUseId: tc.id,
+              content: result.output,
+              isError: result.isError,
+            },
+          ],
         });
         toolCallsMade.push({ name: tc.name, input: tc.input, output: result.output });
         this.logger.log(

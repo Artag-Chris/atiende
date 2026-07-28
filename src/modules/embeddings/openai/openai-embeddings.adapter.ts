@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { EmbeddingProviderPort } from '@core/ports/embedding-provider.port';
 import { AI_CONFIG_TOKEN } from '@core/tokens';
@@ -12,8 +13,11 @@ export class OpenAIEmbeddingsAdapter implements EmbeddingProviderPort {
   private readonly model = 'text-embedding-3-small';
   private readonly dimensions = 1536;
 
-  constructor(@Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig) {
-    const apiKey = process.env.OPENAI_API_KEY;
+  constructor(
+    @Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig,
+    private readonly configService: ConfigService,
+  ) {
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY not configured');
     }

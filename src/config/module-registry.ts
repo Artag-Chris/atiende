@@ -82,12 +82,13 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Embeddings -----
   switch (features.embeddings.provider) {
-    case 'openai': modules.push(OpenAIEmbeddingsModule); break;
+    case 'openai':
+      modules.push(OpenAIEmbeddingsModule);
+      break;
   }
 
   // ----- Caching -----
-  if (features.cache.exact)    modules.push(CacheModule);
-  // if (features.cache.semantic) modules.push(SemanticCacheModule);
+  if (features.cache.exact || features.cache.semantic) modules.push(CacheModule);
 
   return modules;
 }

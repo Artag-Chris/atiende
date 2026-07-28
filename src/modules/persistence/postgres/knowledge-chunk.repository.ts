@@ -21,9 +21,7 @@ export class KnowledgeChunkRepository {
     const kind = options?.kind ?? null;
     const vectorStr = `[${embedding.join(',')}]`;
 
-    const rows = await this.prisma.$queryRawUnsafe<
-      Array<{ id: string; similarity: number }>
-    >(
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; similarity: number }>>(
       `SELECT kc.id,
               1 - (kc.embedding <=> $1::vector) as similarity
        FROM knowledge_chunks kc
@@ -57,16 +55,18 @@ export class KnowledgeChunkRepository {
       .filter((r) => r.chunk);
   }
 
-  async batchSave(chunks: Array<{
-    documentId: string;
-    businessId: string;
-    kind: string;
-    position: number;
-    text: string;
-    pageNumber?: number | null;
-    embeddingModel: string;
-    embedding: number[];
-  }>): Promise<void> {
+  async batchSave(
+    chunks: Array<{
+      documentId: string;
+      businessId: string;
+      kind: string;
+      position: number;
+      text: string;
+      pageNumber?: number | null;
+      embeddingModel: string;
+      embedding: number[];
+    }>,
+  ): Promise<void> {
     if (chunks.length === 0) return;
 
     const BATCH_SIZE = 50;

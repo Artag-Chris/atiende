@@ -32,7 +32,8 @@ export class SearchCatalogTool implements ToolModulePort {
         properties: {
           query: {
             type: 'string',
-            description: 'Texto de búsqueda del cliente (ej: "laptop para gaming", "algo barato para estudiar")',
+            description:
+              'Texto de búsqueda del cliente (ej: "laptop para gaming", "algo barato para estudiar")',
           },
           limit: {
             type: 'number',

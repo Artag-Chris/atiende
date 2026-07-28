@@ -39,8 +39,15 @@ export class WhatsAppAdapter implements ChannelProviderPort {
   private readonly logger = new Logger(WhatsAppAdapter.name);
   private readonly appSecret: string;
 
+  private readonly metaGraphApiVersion: string;
+  private readonly devPhoneNumberId: string | undefined;
+  private readonly devAccessToken: string | undefined;
+
   constructor(configService: ConfigService) {
     this.appSecret = configService.getOrThrow<string>('META_APP_SECRET');
+    this.metaGraphApiVersion = configService.get<string>('META_GRAPH_API_VERSION', 'v21.0');
+    this.devPhoneNumberId = configService.get<string>('META_DEV_PHONE_NUMBER_ID');
+    this.devAccessToken = configService.get<string>('META_DEV_ACCESS_TOKEN');
   }
 
   verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
@@ -83,11 +90,11 @@ export class WhatsAppAdapter implements ChannelProviderPort {
   }
 
   async send(message: OutboundMessage): Promise<SendResult> {
-    const phoneId = process.env.META_DEV_PHONE_NUMBER_ID;
+    const phoneId = this.devPhoneNumberId;
     if (!phoneId) {
       throw new Error('META_DEV_PHONE_NUMBER_ID not configured');
     }
-    const url = `https://graph.facebook.com/v21.0/${phoneId}/messages`;
+    const url = `https://graph.facebook.com/${this.metaGraphApiVersion}/${phoneId}/messages`;
 
     const body = {
       messaging_product: 'whatsapp',
@@ -103,7 +110,7 @@ export class WhatsAppAdapter implements ChannelProviderPort {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.META_DEV_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${this.devAccessToken}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
