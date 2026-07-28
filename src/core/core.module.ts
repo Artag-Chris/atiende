@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { AgentService } from './services/agent.service';
 import { ProcessInboundMessageUseCase } from './use-cases/process-inbound-message';
 
@@ -10,6 +10,7 @@ import { ProcessInboundMessageUseCase } from './use-cases/process-inbound-messag
  * desde los módulos correspondientes en src/modules/. La elección de cuáles
  * cargar la hace el ModuleRegistry según las feature flags.
  */
+@Global()
 @Module({
   imports: [],
   providers: [AgentService, ProcessInboundMessageUseCase],
