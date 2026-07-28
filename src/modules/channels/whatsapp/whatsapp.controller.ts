@@ -9,12 +9,15 @@ import {
   Logger,
   UnauthorizedException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
+import Redis from 'ioredis';
 import { WhatsAppAdapter } from './whatsapp.adapter';
 import { QUEUE_NAMES, type InboundMessageJobData } from '@config/queue.config';
+import { REDIS_CLIENT_TOKEN } from '@core/tokens';
 
 @Controller('webhook/whatsapp')
 export class WhatsAppController {
@@ -26,6 +29,7 @@ export class WhatsAppController {
     configService: ConfigService,
     private readonly whatsapp: WhatsAppAdapter,
     @InjectQueue(QUEUE_NAMES.INBOUND_MESSAGE) private readonly inboundQueue: Queue<InboundMessageJobData>,
+    @Inject(REDIS_CLIENT_TOKEN) private readonly redis: Redis,
   ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
     this.isProduction = configService.get('NODE_ENV') === 'production';
@@ -83,6 +87,13 @@ export class WhatsAppController {
     if (!firstText || !firstText.text) {
       this.logger.debug('No text messages to process');
       return { status: 'ok' };
+    }
+
+    const dedupKey = `idempotency:${firstText.externalAccountId}:${firstText.externalMessageId}`;
+    const firstSeen = await this.redis.set(dedupKey, '1', 'EX', 86_400, 'NX');
+    if (!firstSeen) {
+      this.logger.debug(`Duplicate webhook message ${firstText.externalMessageId}, skipping`);
+      return { status: 'ok', dedup: true };
     }
 
     const jobId = `${firstText.externalAccountId}-${firstText.externalMessageId}`;

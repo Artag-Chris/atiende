@@ -11,6 +11,7 @@ import { RedisModule } from '../modules/infrastructure/redis/redis.module';
 import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
 import { ResponsePolicyModule } from '../modules/response-policy/response-policy.module';
+import { CacheModule } from '../modules/cache/cache.module';
 
 /**
  * Carga dinámica de módulos según feature flags.
@@ -85,7 +86,7 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   }
 
   // ----- Caching -----
-  // if (features.cache.exact)    modules.push(ExactCacheModule);
+  if (features.cache.exact)    modules.push(CacheModule);
   // if (features.cache.semantic) modules.push(SemanticCacheModule);
 
   return modules;

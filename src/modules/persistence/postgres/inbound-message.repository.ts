@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import type { InboundMessage } from '@prisma/client';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class InboundMessageRepository {
@@ -14,13 +14,30 @@ export class InboundMessageRepository {
     rawPayload: Record<string, unknown>;
     externalMessageId: string;
   }): Promise<InboundMessage> {
-    return this.prisma.inboundMessage.create({
-      data: {
-        businessId: data.businessId,
-        rawPayload: data.rawPayload as unknown as Prisma.JsonObject,
-        externalMessageId: data.externalMessageId,
-      },
-    });
+    try {
+      return await this.prisma.inboundMessage.create({
+        data: {
+          businessId: data.businessId,
+          rawPayload: data.rawPayload as unknown as Prisma.JsonObject,
+          externalMessageId: data.externalMessageId,
+        },
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.debug(`Duplicate inbound message ${data.externalMessageId}, fetching existing`);
+        const existing = await this.prisma.inboundMessage.findFirst({
+          where: {
+            businessId: data.businessId,
+            externalMessageId: data.externalMessageId,
+          },
+        });
+        if (existing) return existing;
+      }
+      throw error;
+    }
   }
 
   async markProcessed(id: string): Promise<void> {

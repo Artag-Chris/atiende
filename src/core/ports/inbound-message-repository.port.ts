@@ -12,4 +12,5 @@ export interface InboundMessageRepositoryPort {
     externalMessageId: string;
   }): Promise<InboundMessageData>;
   existsByExternalId(businessId: string, externalMessageId: string): Promise<boolean>;
+  markProcessed(id: string): Promise<void>;
 }

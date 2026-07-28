@@ -5,8 +5,9 @@ import type { ConversationRepositoryPort } from '@core/ports/conversation-reposi
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
 import type { InboundMessageRepositoryPort } from '@core/ports/inbound-message-repository.port';
 import type { BusinessRepositoryPort } from '@core/ports/business-repository.port';
-import type { ChatMessage } from '@core/domain/types';
+import type { ChatMessage, TurnContext } from '@core/domain/types';
 import type { ResponsePolicyPort } from '@core/ports/response-policy.port';
+import type { ResponseCachePort } from '@core/ports/response-cache.port';
 import {
   AGENT_RUN_REPOSITORY_TOKEN,
   CONVERSATION_REPOSITORY_TOKEN,
@@ -14,6 +15,7 @@ import {
   INBOUND_MESSAGE_REPOSITORY_TOKEN,
   BUSINESS_REPOSITORY_TOKEN,
   RESPONSE_POLICY_TOKEN,
+  EXACT_CACHE_TOKEN,
 } from '@core/tokens';
 
 const DEFAULT_SYSTEM_PROMPT = `Eres un asistente conversacional de IA. Atiendes clientes por WhatsApp con calidez y eficiencia.
@@ -58,6 +60,7 @@ export class ProcessInboundMessageUseCase {
     @Inject(MESSAGE_REPOSITORY_TOKEN) private readonly messageRepo: MessageRepositoryPort,
     @Inject(INBOUND_MESSAGE_REPOSITORY_TOKEN) private readonly inboundMessageRepo: InboundMessageRepositoryPort,
     @Optional() @Inject(RESPONSE_POLICY_TOKEN) private readonly responsePolicy?: ResponsePolicyPort,
+    @Optional() @Inject(EXACT_CACHE_TOKEN) private readonly exactCache?: ResponseCachePort,
   ) {}
 
   async execute(message: InboundMessage): Promise<ProcessResult> {
@@ -86,6 +89,8 @@ export class ProcessInboundMessageUseCase {
       ? await this.conversationRepo.getOrCreate(business.id, 'WHATSAPP', message.from)
       : null;
 
+    let inboundMsgId: string | null = null;
+
     if (business && conversation) {
       const alreadyExists = await this.inboundMessageRepo.existsByExternalId(
         business.id,
@@ -96,11 +101,12 @@ export class ProcessInboundMessageUseCase {
         return { responded: false };
       }
 
-      await this.inboundMessageRepo.save({
+      const saved = await this.inboundMessageRepo.save({
         businessId: business.id,
         rawPayload: message.rawPayload,
         externalMessageId: message.externalMessageId,
       });
+      inboundMsgId = saved.id;
     }
 
     const conversationHistory = conversation
@@ -119,6 +125,46 @@ export class ProcessInboundMessageUseCase {
       business?.systemPromptExtras,
       business?.name ?? undefined,
     );
+
+    const hasPII = this.hasPII(message.text);
+
+    if (this.exactCache && business && conversation) {
+      const turnCtx: TurnContext = {
+        businessId: business.id,
+        conversationId: conversation.id,
+        customerPhone: message.from,
+        channel: 'whatsapp',
+        historyLength: conversationHistory?.length ?? 0,
+        hasPersonalInfo: hasPII,
+        mayInvolveStatefulTool: false,
+        businessConfig: {},
+      };
+      try {
+        const cached = await this.exactCache.lookup(message.text, turnCtx);
+        if (cached) {
+          let cachedText = cached.responseText;
+          if (this.responsePolicy) {
+            const validation = this.responsePolicy.validateResponse(cachedText, {
+              message: message.text,
+              businessName: business?.name ?? undefined,
+            });
+            if (!validation.approved) {
+              cachedText = validation.modified ?? cachedText;
+              this.logger.warn(`Cached response validation failed: ${validation.reason}`);
+            }
+          }
+          if (inboundMsgId) {
+            await this.inboundMessageRepo.markProcessed(inboundMsgId).catch(
+              (err: unknown) => this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
+            );
+          }
+          this.logger.log(`Exact cache HIT for business=${business.id}`);
+          return { responded: true, responseText: cachedText };
+        }
+      } catch (err) {
+        this.logger.warn(`Exact cache lookup error: ${err}`);
+      }
+    }
 
     const agentResponse = await this.agentService.runTurn({
       systemPrompt,
@@ -147,6 +193,24 @@ export class ProcessInboundMessageUseCase {
       }
     }
 
+    if (this.exactCache && business && conversation) {
+      const turnCtx: TurnContext = {
+        businessId: business.id,
+        conversationId: conversation.id,
+        customerPhone: message.from,
+        channel: 'whatsapp',
+        historyLength: conversationHistory?.length ?? 0,
+        hasPersonalInfo: hasPII,
+        mayInvolveStatefulTool: agentResponse.toolCallsMade.some(
+          (t) => t.name === 'create_order' || t.name === 'escalate_to_human',
+        ),
+        businessConfig: {},
+      };
+      this.exactCache
+        .store(message.text, { responseText: finalText, toolCalls: agentResponse.toolCallsMade }, turnCtx)
+        .catch((err: Error) => this.logger.warn(`Exact cache store error: ${err.message}`));
+    }
+
     if (business && conversation) {
       await this.messageRepo.save({
         conversationId: conversation.id,
@@ -158,6 +222,12 @@ export class ProcessInboundMessageUseCase {
           toolCalls: agentResponse.toolCallsMade,
         },
       });
+    }
+
+    if (inboundMsgId) {
+      await this.inboundMessageRepo.markProcessed(inboundMsgId).catch(
+        (err: unknown) => this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
+      );
     }
 
     this.logger.log(
@@ -268,5 +338,12 @@ export class ProcessInboundMessageUseCase {
       this.logger.error(`Failed to load conversation history: ${error}`);
       return [];
     }
+  }
+
+  private hasPII(text: string): boolean {
+    if (/[\w.-]+@[\w.-]+\.\w{2,}/i.test(text)) return true;
+    if (/\b(?:CC|cc|cédula|cedula|nit|NIT)\s*[:.]?\s*\d{5,12}\b/i.test(text)) return true;
+    if (/\b(?:carrera|calle|cra|cl|av|avenida|transversal|diagonal|dirección|dir)\b/i.test(text) && /\d{2,}/.test(text)) return true;
+    return false;
   }
 }
