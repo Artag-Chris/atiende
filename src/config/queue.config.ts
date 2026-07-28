@@ -191,6 +191,9 @@ export interface InboundMessageJobData {
   inboundMessageId: string; // UUID en DB
   businessId: string;
   customerPhone: string;
+  text: string;
+  externalMessageId: string;
+  rawPayload: Record<string, unknown>;
 }
 
 export interface AgentRunJobData {

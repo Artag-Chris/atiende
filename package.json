@@ -68,6 +68,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.0",
     "@types/express": "^5.0.0",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.0.0",
     "@types/opossum": "^8.1.0",
     "@types/pdf-parse": "^1.1.4",

@@ -6,3 +6,7 @@ export * from './tool-module.port';
 export * from './document-extractor.port';
 export * from './chunker.port';
 export * from './agent-run-repository.port';
+export * from './business-repository.port';
+export * from './conversation-repository.port';
+export * from './message-repository.port';
+export * from './inbound-message-repository.port';

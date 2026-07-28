@@ -19,4 +19,5 @@ export interface AgentRunData {
 
 export interface AgentRunRepositoryPort {
   save(data: AgentRunData): Promise<void>;
+  getConversationCost(conversationId: string): Promise<number>;
 }

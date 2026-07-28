@@ -87,12 +87,37 @@ export class GroqAdapter implements LLMProviderPort {
     const result: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     for (const msg of messages) {
-      if (msg.role === 'user' || msg.role === 'assistant') {
+      if (msg.role === 'user') {
         const content = this.extractTextContent(msg.content);
         if (content) {
+          result.push({ role: 'user', content });
+        }
+      } else if (msg.role === 'assistant') {
+        const textContent = this.extractTextContent(msg.content);
+        const toolUseBlocks = msg.content.filter((b) => b.type === 'tool_use');
+        if (toolUseBlocks.length > 0) {
           result.push({
-            role: msg.role as 'user' | 'assistant',
-            content,
+            role: 'assistant',
+            content: textContent || null,
+            tool_calls: toolUseBlocks.map((b) => ({
+              id: b.id,
+              type: 'function' as const,
+              function: {
+                name: b.name,
+                arguments: JSON.stringify(b.input),
+              },
+            })),
+          });
+        } else if (textContent) {
+          result.push({ role: 'assistant', content: textContent });
+        }
+      } else if (msg.role === 'tool') {
+        const toolResult = msg.content.find((b) => b.type === 'tool_result');
+        if (toolResult) {
+          result.push({
+            role: 'tool',
+            tool_call_id: toolResult.toolUseId,
+            content: toolResult.content,
           });
         }
       }

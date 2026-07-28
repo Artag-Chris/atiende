@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AgentService } from './services/agent.service';
+import { ProcessInboundMessageUseCase } from './use-cases/process-inbound-message';
 
 /**
  * CoreModule contiene la lógica de negocio del agente.
@@ -11,7 +12,7 @@ import { AgentService } from './services/agent.service';
  */
 @Module({
   imports: [],
-  providers: [AgentService],
-  exports: [AgentService],
+  providers: [AgentService, ProcessInboundMessageUseCase],
+  exports: [AgentService, ProcessInboundMessageUseCase],
 })
 export class CoreModule {}

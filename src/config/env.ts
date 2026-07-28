@@ -182,6 +182,7 @@ export const EnvSchema = z.object({
   FEATURE_AI_PROMPT_CACHING: boolFromEnv.default(true),
   FEATURE_AI_COMPACTION: boolFromEnv.default(true),
   FEATURE_AI_ADAPTIVE_THINKING: boolFromEnv.default(true),
+  FEATURE_AI_SCOPE_GUARD: boolFromEnv.default(true),
   FEATURE_CHANNEL_WHATSAPP: boolFromEnv.default(true),
   FEATURE_CHANNEL_WEB_CHAT: boolFromEnv.default(false),
   FEATURE_CHANNEL_TELEGRAM: boolFromEnv.default(false),

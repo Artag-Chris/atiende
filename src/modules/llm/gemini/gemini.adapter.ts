@@ -81,18 +81,52 @@ export class GeminiAdapter implements LLMProviderPort {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private translateMessages(
     messages: ChatMessage[],
-  ): Array<{ role: string; parts: Array<{ text: string }> }> {
-    const result: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  ): any[] {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any[] = [];
 
     for (const msg of messages) {
-      if (msg.role === 'user' || msg.role === 'assistant') {
+      if (msg.role === 'user') {
         const text = this.extractTextContent(msg.content);
         if (text) {
+          result.push({ role: 'user', parts: [{ text }] });
+        }
+      } else if (msg.role === 'assistant') {
+        const textContent = this.extractTextContent(msg.content);
+        const toolUseBlocks = msg.content.filter((b) => b.type === 'tool_use');
+        if (toolUseBlocks.length > 0) {
+          const parts: Array<{ text: string } | { functionCall: Record<string, unknown> }> = [];
+          if (textContent) {
+            parts.push({ text: textContent });
+          }
+          for (const b of toolUseBlocks) {
+            parts.push({
+              functionCall: {
+                name: b.name,
+                args: b.input,
+              },
+            });
+          }
+          result.push({ role: 'model', parts });
+        } else if (textContent) {
+          result.push({ role: 'model', parts: [{ text: textContent }] });
+        }
+      } else if (msg.role === 'tool') {
+        const toolResult = msg.content.find((b) => b.type === 'tool_result');
+        if (toolResult) {
           result.push({
-            role: msg.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text }],
+            role: 'user',
+            parts: [
+              {
+                functionResponse: {
+                  name: toolResult.toolUseId.split('_').slice(0, -1).join('_') || 'unknown',
+                  response: { result: toolResult.content },
+                },
+              },
+            ],
           });
         }
       }

@@ -36,6 +36,7 @@ export interface Features {
     promptCaching: boolean;
     compaction: boolean;
     adaptiveThinking: boolean;
+    scopeGuard: boolean;
   };
   cache: {
     exact: boolean;
@@ -75,6 +76,7 @@ export function buildFeatures(env: Env): Features {
       promptCaching: env.FEATURE_AI_PROMPT_CACHING,
       compaction: env.FEATURE_AI_COMPACTION,
       adaptiveThinking: env.FEATURE_AI_ADAPTIVE_THINKING,
+      scopeGuard: env.FEATURE_AI_SCOPE_GUARD,
     },
     cache: {
       exact: env.FEATURE_CACHE_EXACT,

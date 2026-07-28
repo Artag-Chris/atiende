@@ -11,38 +11,24 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { WhatsAppAdapter } from './whatsapp.adapter';
-import { AgentService } from '@core/services/agent.service';
-import { BusinessRepository } from '@modules/persistence/postgres/business.repository';
-import { ConversationRepository } from '@modules/persistence/postgres/conversation.repository';
-import { MessageRepository } from '@modules/persistence/postgres/message.repository';
-import { InboundMessageRepository } from '@modules/persistence/postgres/inbound-message.repository';
-
-const DEFAULT_SYSTEM_PROMPT = `Eres un asistente conversacional de IA. Atiendes clientes por WhatsApp con calidez y eficiencia.
-
-REGLAS:
-- Responde en el idioma del cliente (español o inglés).
-- Sé corto y directo (máximo 2-3 oraciones).
-- Si el cliente pregunta por un producto o servicio, di que estás buscando en el catálogo.
-- Si no sabes algo, di que no tienes esa información y ofrece conectarlo con el equipo.
-- Nunca inventes precios o servicios.
-- Si el cliente solicita algo que está fuera de tu alcance, escala a un humano.`;
+import { QUEUE_NAMES, type InboundMessageJobData } from '@config/queue.config';
 
 @Controller('webhook/whatsapp')
 export class WhatsAppController {
   private readonly logger = new Logger(WhatsAppController.name);
   private readonly verifyToken: string;
+  private readonly isProduction: boolean;
 
   constructor(
     configService: ConfigService,
     private readonly whatsapp: WhatsAppAdapter,
-    private readonly agentService: AgentService,
-    private readonly businessRepo: BusinessRepository,
-    private readonly conversationRepo: ConversationRepository,
-    private readonly messageRepo: MessageRepository,
-    private readonly inboundMessageRepo: InboundMessageRepository,
+    @InjectQueue(QUEUE_NAMES.INBOUND_MESSAGE) private readonly inboundQueue: Queue<InboundMessageJobData>,
   ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
+    this.isProduction = configService.get('NODE_ENV') === 'production';
   }
 
   @Get()
@@ -75,7 +61,10 @@ export class WhatsAppController {
     }
 
     if (!signature) {
-      this.logger.warn('Missing x-hub-signature-256 header');
+      if (this.isProduction) {
+        throw new UnauthorizedException('Missing x-hub-signature-256');
+      }
+      this.logger.warn('Missing x-hub-signature-256 header (dev mode — proceeding)');
     } else if (!this.whatsapp.verifyWebhookSignature(rawBody, signature)) {
       throw new UnauthorizedException('Invalid signature');
     }
@@ -96,80 +85,21 @@ export class WhatsAppController {
       return { status: 'ok' };
     }
 
-    this.logger.log(`Processing message from ${firstText.from}: "${firstText.text}"`);
-
-    try {
-      const business = await this.businessRepo.findByPhoneId(firstText.externalAccountId);
-      if (!business) {
-        this.logger.warn(
-          `No business found for phone_id=${firstText.externalAccountId}. Processing without persistence.`,
-        );
-      }
-
-      const conversation = business
-        ? await this.conversationRepo.getOrCreate(business.id, 'WHATSAPP', firstText.from)
-        : null;
-
-      if (business && conversation) {
-        const alreadyExists = await this.inboundMessageRepo.existsByExternalId(
-          business.id,
-          firstText.externalMessageId,
-        );
-        if (alreadyExists) {
-          this.logger.debug(`Duplicate inbound message ${firstText.externalMessageId}, skipping`);
-          return { status: 'ok' };
-        }
-
-        await this.inboundMessageRepo.save({
-          businessId: business.id,
-          rawPayload: firstText.rawPayload as Record<string, unknown>,
-          externalMessageId: firstText.externalMessageId,
-        });
-
-        await this.messageRepo.save({
-          conversationId: conversation.id,
-          role: 'USER',
-          content: [{ type: 'text', text: firstText.text }],
-        });
-      }
-
-      const agentResponse = await this.agentService.runTurn({
-        systemPrompt: business?.systemPromptExtras
-          ? `${DEFAULT_SYSTEM_PROMPT}\n\n${business.systemPromptExtras}`
-          : DEFAULT_SYSTEM_PROMPT,
-        userMessage: firstText.text,
-        persistence:
-          business && conversation
-            ? { businessId: business.id, conversationId: conversation.id }
-            : undefined,
-      });
-
-      if (business && conversation) {
-        await this.messageRepo.save({
-          conversationId: conversation.id,
-          role: 'ASSISTANT',
-          content: [{ type: 'text', text: agentResponse.text }],
-          tokenUsage: {
-            inputTokens: agentResponse.usage.inputTokens,
-            outputTokens: agentResponse.usage.outputTokens,
-          },
-        });
-      }
-
-      this.logger.log(
-        `Agent responded: "${agentResponse.text.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
-      );
-
-      await this.whatsapp.send({
+    const jobId = `${firstText.externalAccountId}:${firstText.from}`;
+    await this.inboundQueue.add(
+      'process',
+      {
+        inboundMessageId: firstText.externalMessageId,
         businessId: firstText.externalAccountId,
-        to: firstText.from,
-        text: agentResponse.text,
-      });
-      this.logger.log(`Response sent to ${firstText.from}`);
-    } catch (error) {
-      this.logger.error(`Error processing message: ${error}`);
-    }
+        customerPhone: firstText.from,
+        text: firstText.text,
+        externalMessageId: firstText.externalMessageId,
+        rawPayload: firstText.rawPayload as Record<string, unknown>,
+      },
+      { jobId },
+    );
 
+    this.logger.log(`Enqueued inbound message for ${firstText.from}`);
     return { status: 'ok' };
   }
 }

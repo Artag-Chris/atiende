@@ -40,4 +40,12 @@ export class AgentRunRepository implements AgentRunRepositoryPort {
       skip: options?.offset ?? 0,
     });
   }
+
+  async getConversationCost(conversationId: string): Promise<number> {
+    const result = await this.prisma.agentRun.aggregate({
+      where: { conversationId },
+      _sum: { costUsd: true },
+    });
+    return Number(result._sum.costUsd ?? 0);
+  }
 }

@@ -31,6 +31,7 @@ export const SEMANTIC_CACHE_TOKEN = Symbol('SEMANTIC_CACHE');
 
 // ----- Tools (multi-binding: el agente recibe todas las habilitadas) ---------
 export const TOOL_MODULES_TOKEN = Symbol('TOOL_MODULES');
+export const RESPONSE_POLICY_TOKEN = Symbol('RESPONSE_POLICY');
 
 // ----- Knowledge ingestion (multi-binding de extractors según MIME) ----------
 export const DOCUMENT_EXTRACTORS_TOKEN = Symbol('DOCUMENT_EXTRACTORS');
@@ -38,6 +39,13 @@ export const CHUNKER_TOKEN = Symbol('CHUNKER');
 
 // ----- Persistence -----------------------------------------------------------
 export const AGENT_RUN_REPOSITORY_TOKEN = Symbol('AGENT_RUN_REPOSITORY');
+export const BUSINESS_REPOSITORY_TOKEN = Symbol('BUSINESS_REPOSITORY');
+export const CONVERSATION_REPOSITORY_TOKEN = Symbol('CONVERSATION_REPOSITORY');
+export const MESSAGE_REPOSITORY_TOKEN = Symbol('MESSAGE_REPOSITORY');
+export const INBOUND_MESSAGE_REPOSITORY_TOKEN = Symbol('INBOUND_MESSAGE_REPOSITORY');
+
+// ----- Infrastructure -------------------------------------------------------
+export const REDIS_CLIENT_TOKEN = Symbol('REDIS_CLIENT');
 
 // ============================================================================
 // DEPRECATED — mantener temporalmente para no romper imports en módulos viejos.

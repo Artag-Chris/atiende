@@ -6,6 +6,11 @@ import { GeminiModule } from '../modules/llm/gemini/gemini.module';
 import { GroqModule } from '../modules/llm/groq/groq.module';
 import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
 import { PostgresPersistenceModule } from '../modules/persistence/postgres/postgres-persistence.module';
+import { ToolsModule } from '../modules/tools/tools.module';
+import { RedisModule } from '../modules/infrastructure/redis/redis.module';
+import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
+import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
+import { ResponsePolicyModule } from '../modules/response-policy/response-policy.module';
 
 /**
  * Carga dinámica de módulos según feature flags.
@@ -20,6 +25,12 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Persistencia (siempre habilitada) -----
   modules.push(PostgresPersistenceModule);
+
+  // ----- Infrastructure (siempre habilitada) -----
+  modules.push(RedisModule);
+
+  // ----- Tools (siempre habilitadas) -----
+  modules.push(ToolsModule);
 
   // ----- LLM primario -----
   switch (features.llm.primary) {
@@ -39,10 +50,12 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   }
 
   // ----- LLM fallback (opcional) -----
-  if (features.llm.fallback === 'openai') {
+  if (features.llm.fallback === 'openai' && features.llm.primary !== 'openai') {
     modules.push(OpenAIModule);
-  } else if (features.llm.fallback === 'groq') {
+  } else if (features.llm.fallback === 'groq' && features.llm.primary !== 'groq') {
     modules.push(GroqModule);
+  } else if (features.llm.fallback === 'gemini' && features.llm.primary !== 'gemini') {
+    modules.push(GeminiModule);
   }
 
   // ----- Canales -----
@@ -56,11 +69,16 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   // if (features.tools.info)       modules.push(InfoToolModule);
   // if (features.tools.escalation) modules.push(EscalationToolModule);
 
+  // ----- Knowledge (feature-flagged) -----
+  if (features.tools.knowledgeSearch) modules.push(KnowledgeModule);
+
+  // ----- Response Policy (feature-flagged) -----
+  if (features.ai.scopeGuard) modules.push(ResponsePolicyModule);
+
   // ----- Embeddings -----
-  // switch (features.embeddings.provider) {
-  //   case 'openai': modules.push(OpenAIEmbeddingsModule); break;
-  //   case 'voyage': modules.push(VoyageEmbeddingsModule); break;
-  // }
+  switch (features.embeddings.provider) {
+    case 'openai': modules.push(OpenAIEmbeddingsModule); break;
+  }
 
   // ----- Caching -----
   // if (features.cache.exact)    modules.push(ExactCacheModule);
