@@ -64,7 +64,7 @@ export class GroqAdapter implements LLMProviderPort {
       );
 
       return {
-        text,
+        text: this.stripRawFunctionCalls(text),
         toolCalls,
         stopReason,
         usage,
@@ -89,7 +89,7 @@ export class GroqAdapter implements LLMProviderPort {
         };
         const cost = calculateCost(this.model, usage);
         return {
-          text: choice?.message?.content ?? '',
+          text: this.stripRawFunctionCalls(choice?.message?.content ?? ''),
           toolCalls: [],
           stopReason: 'end_turn',
           usage,
@@ -201,5 +201,9 @@ export class GroqAdapter implements LLMProviderPort {
       default:
         return 'other';
     }
+  }
+
+  private stripRawFunctionCalls(text: string): string {
+    return text.replace(/<function:[\s\S]*?<\/function>/g, '').trim();
   }
 }
