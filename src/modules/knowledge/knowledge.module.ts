@@ -1,4 +1,4 @@
-import { Module, Provider } from '@nestjs/common';
+import { Global, Module, Provider } from '@nestjs/common';
 import { KnowledgeService } from './knowledge.service';
 import { KnowledgeController } from './knowledge.controller';
 import { KnowledgeDocumentRepository } from '@modules/persistence/postgres/knowledge-document.repository';
@@ -18,6 +18,7 @@ const extractorsProviders: Provider[] = [
   },
 ];
 
+@Global()
 @Module({
   controllers: [KnowledgeController],
   providers: [
