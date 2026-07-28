@@ -85,7 +85,7 @@ export class WhatsAppController {
       return { status: 'ok' };
     }
 
-    const jobId = `${firstText.externalAccountId}:${firstText.from}`;
+    const jobId = `${firstText.externalAccountId}-${firstText.from}`;
     await this.inboundQueue.add(
       'process',
       {
