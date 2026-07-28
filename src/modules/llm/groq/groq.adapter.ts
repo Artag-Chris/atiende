@@ -32,44 +32,73 @@ export class GroqAdapter implements LLMProviderPort {
     const messages = this.translateMessages(req.messages);
     const tools = req.tools?.map((t) => this.translateTool(t));
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: req.maxTokens,
-      messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
-      tools: tools?.length ? tools : undefined,
-    });
+    try {
+      const response = await this.client.chat.completions.create({
+        model: this.model,
+        max_tokens: req.maxTokens,
+        messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
+        tools: tools?.length ? tools : undefined,
+      });
 
-    const choice = response.choices[0];
-    if (!choice) {
-      throw new Error('Groq returned no choices (possible content filter or safety block)');
+      const choice = response.choices[0];
+      if (!choice) {
+        throw new Error('Groq returned no choices (possible content filter or safety block)');
+      }
+      const latencyMs = Date.now() - startTime;
+
+      const text = choice.message.content ?? '';
+      const toolCalls = this.extractToolCalls(choice.message);
+      const stopReason = this.mapStopReason(choice.finish_reason);
+
+      const usage = {
+        inputTokens: response.usage?.prompt_tokens ?? 0,
+        outputTokens: response.usage?.completion_tokens ?? 0,
+        cacheReadInputTokens: 0,
+        cacheCreationInputTokens: 0,
+      };
+
+      const cost = calculateCost(this.model, usage);
+
+      this.logger.log(
+        `[Groq] ${this.model} | ${latencyMs}ms | in=${usage.inputTokens} out=${usage.outputTokens} | $${cost.totalUsd.toFixed(6)}`,
+      );
+
+      return {
+        text,
+        toolCalls,
+        stopReason,
+        usage,
+        costUsd: cost.totalUsd,
+        model: this.model,
+      };
+    } catch (error: any) {
+      if (error?.status === 400 && tools?.length) {
+        this.logger.warn(`[Groq] Tool call failed, retrying without tools: ${error.message}`);
+        const response = await this.client.chat.completions.create({
+          model: this.model,
+          max_tokens: req.maxTokens,
+          messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
+        });
+        const choice = response.choices[0];
+        const latencyMs = Date.now() - startTime;
+        const usage = {
+          inputTokens: response.usage?.prompt_tokens ?? 0,
+          outputTokens: response.usage?.completion_tokens ?? 0,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 0,
+        };
+        const cost = calculateCost(this.model, usage);
+        return {
+          text: choice?.message?.content ?? '',
+          toolCalls: [],
+          stopReason: 'end_turn',
+          usage,
+          costUsd: cost.totalUsd,
+          model: this.model,
+        };
+      }
+      throw error;
     }
-    const latencyMs = Date.now() - startTime;
-
-    const text = choice.message.content ?? '';
-    const toolCalls = this.extractToolCalls(choice.message);
-    const stopReason = this.mapStopReason(choice.finish_reason);
-
-    const usage = {
-      inputTokens: response.usage?.prompt_tokens ?? 0,
-      outputTokens: response.usage?.completion_tokens ?? 0,
-      cacheReadInputTokens: 0,
-      cacheCreationInputTokens: 0,
-    };
-
-    const cost = calculateCost(this.model, usage);
-
-    this.logger.log(
-      `[Groq] ${this.model} | ${latencyMs}ms | in=${usage.inputTokens} out=${usage.outputTokens} | $${cost.totalUsd.toFixed(6)}`,
-    );
-
-    return {
-      text,
-      toolCalls,
-      stopReason,
-      usage,
-      costUsd: cost.totalUsd,
-      model: this.model,
-    };
   }
 
   async isHealthy(): Promise<boolean> {
