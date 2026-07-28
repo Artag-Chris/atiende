@@ -50,13 +50,17 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   }
 
   // ----- LLM fallback (opcional) -----
-  if (features.llm.fallback === 'openai' && features.llm.primary !== 'openai') {
-    modules.push(OpenAIModule);
-  } else if (features.llm.fallback === 'groq' && features.llm.primary !== 'groq') {
-    modules.push(GroqModule);
-  } else if (features.llm.fallback === 'gemini' && features.llm.primary !== 'gemini') {
-    modules.push(GeminiModule);
-  }
+  // NOTA: El módulo de fallback NO se carga actualmente porque tanto GroqModule
+  // como OpenAIModule registran LLM_PROVIDER_TOKEN, y el último en cargarse pisa
+  // al primario. Cuando exista un LLMRouterService que use LLM_PROVIDER_FALLBACK_TOKEN
+  // por separado, habilitar esto con módulos que registren solo el token de fallback.
+  // if (features.llm.fallback === 'openai' && features.llm.primary !== 'openai') {
+  //   modules.push(OpenAIModule);
+  // } else if (features.llm.fallback === 'groq' && features.llm.primary !== 'groq') {
+  //   modules.push(GroqModule);
+  // } else if (features.llm.fallback === 'gemini' && features.llm.primary !== 'gemini') {
+  //   modules.push(GeminiModule);
+  // }
 
   // ----- Canales -----
   if (features.channels.whatsapp) modules.push(WhatsAppModule);
