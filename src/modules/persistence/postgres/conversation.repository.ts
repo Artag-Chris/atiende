@@ -47,6 +47,21 @@ export class ConversationRepository {
     });
   }
 
+  async findEscalated(
+    businessId?: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<Conversation[]> {
+    return this.prisma.conversation.findMany({
+      where: {
+        status: 'ESCALATED',
+        ...(businessId ? { businessId } : {}),
+      },
+      orderBy: { escalatedAt: 'desc' },
+      take: options?.limit ?? 50,
+      skip: options?.offset ?? 0,
+    });
+  }
+
   async updateStatus(
     id: string,
     status: 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED',

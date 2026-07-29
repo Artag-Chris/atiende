@@ -237,6 +237,21 @@ export class ProcessInboundMessageUseCase {
     }
 
     if (business && conversation) {
+      const escalated = agentResponse.toolCallsMade.some((t) => t.name === 'escalate_to_human');
+      if (escalated) {
+        const escalationToolCall = agentResponse.toolCallsMade.find(
+          (t) => t.name === 'escalate_to_human',
+        );
+        const reason = (escalationToolCall?.input as Record<string, unknown>)?.reason as
+          | string
+          | undefined;
+        await this.conversationRepo
+          .updateStatus(conversation.id, 'ESCALATED', { escalationReason: reason })
+          .catch((err: unknown) => this.logger.warn(`Failed to persist escalation status: ${err}`));
+      }
+    }
+
+    if (business && conversation) {
       await this.messageRepo.save({
         conversationId: conversation.id,
         role: 'ASSISTANT',

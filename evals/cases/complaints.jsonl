@@ -1,0 +1,10 @@
+{"id":"complaint-001","category":"complaint","userMessage":"Estoy muy molesto, el producto llegó dañado","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-002","category":"complaint","userMessage":"Hace una semana pedí y nada que llega, quiero que me devuelvan mi plata","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-003","category":"complaint","userMessage":"Pésimo servicio, nunca responden, voy a poner una queja","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-004","category":"complaint","userMessage":"Me entregaron el pedido incompleto, faltaron 3 productos","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-005","category":"complaint","userMessage":"La calidad de este producto es terrible, quiero hablar con el gerente","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-006","category":"complaint","userMessage":"Hola, quería decirles que el envío se tardó bastante comparado con lo que prometen","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-007","category":"complaint","userMessage":"Me llegó otro color, pedí azul y mandaron gris","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-008","category":"complaint","userMessage":"No estoy seguro si esto es normal pero el producto tiene un golpe","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"escalate_to_human"}],"shouldEscalate":true,"responseContain":["lamento","sentimos","ayudar"]}}
+{"id":"complaint-009","category":"complaint","userMessage":"La atención al cliente es muy mala, nadie me soluciona","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}
+{"id":"complaint-010","category":"complaint","userMessage":"Quiero cancelar mi pedido #12345, ya no lo necesito","expected":{"toolCalls":[{"name":"escalate_to_human"}],"shouldEscalate":true}}

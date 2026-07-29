@@ -11,6 +11,7 @@ import {
   BadRequestException,
   Inject,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
@@ -36,6 +37,7 @@ export class WhatsAppController {
     this.isProduction = configService.get('NODE_ENV') === 'production';
   }
 
+  @SkipThrottle()
   @Get()
   verifyWebhook(
     @Query('hub.mode') mode: string,

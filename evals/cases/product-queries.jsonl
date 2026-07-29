@@ -1,0 +1,15 @@
+{"id":"product-001","category":"product_query","userMessage":"Tienen camisetas de algodón?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["camiseta","algodón"]}}
+{"id":"product-002","category":"product_query","userMessage":"Cuánto cuesta el vestido rojo?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["precio","vestido"]}}
+{"id":"product-003","category":"product_query","userMessage":"Tienen tenis en talla 42?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["tenis","talla"]}}
+{"id":"product-004","category":"product_query","userMessage":"Me gustaría ver el catálogo de mochilas","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["mochila"]}}
+{"id":"product-005","category":"product_query","userMessage":"Qué laptops tienen disponibles?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["laptop","disponible"]}}
+{"id":"product-006","category":"product_query","userMessage":"Tienen algo para regalarle a mi mamá en su cumpleaños?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["regalo","opcion"]}}
+{"id":"product-007","category":"product_query","userMessage":"Venden audífonos inalámbricos?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["audífono","inalámbrico"]}}
+{"id":"product-008","category":"product_query","userMessage":"Cuál es el precio del celular Galaxy?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["precio","Galaxy"]}}
+{"id":"product-009","category":"product_query","userMessage":"Tienen cargadores para iPhone?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["cargador","iPhone"]}}
+{"id":"product-010","category":"product_query","userMessage":"Necesito una chaqueta impermeable para lluvia","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["chaqueta","impermeable"]}}
+{"id":"product-011","category":"product_query","userMessage":"Busco algo bonito para una fiesta, no sé qué","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["opcion","recomendac"]}}
+{"id":"product-012","category":"product_query","userMessage":"Tienes cosas de tecnología?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["tecnología","disponemos"]}}
+{"id":"product-013","category":"product_query","userMessage":"Qué hay de nuevo en la tienda?","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["nuevo","producto"]}}
+{"id":"product-014","category":"product_query","userMessage":"Estoy buscando un bolso, pero no muy caro","expected":{"toolCalls":[{"name":"search_catalog"}],"responseContain":["bolso","precio"]}}
+{"id":"product-015","category":"product_query","userMessage":"Tienen descuentos por volumen?","expected":{"toolCalls":[],"responseContain":["consultar","descuento","info"]}}

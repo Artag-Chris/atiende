@@ -14,4 +14,14 @@ export interface ConversationRepositoryPort {
     channel: Channel,
     customerIdentifier: string,
   ): Promise<ConversationData>;
+  findById(id: string): Promise<ConversationData | null>;
+  updateStatus(
+    id: string,
+    status: 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED',
+    extra?: { escalationReason?: string },
+  ): Promise<void>;
+  findEscalated(
+    businessId?: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<ConversationData[]>;
 }

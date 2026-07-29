@@ -248,8 +248,13 @@ export class AgentService {
         this.logger.warn(`Tool "${tc.name}" timed out after ${TOOL_TIMEOUT_MS}ms`);
         return { output: `Tool "${tc.name}" timed out.`, isError: true };
       }
-      this.logger.error(`Tool "${tc.name}" failed: ${error}`);
-      return { output: `Tool "${tc.name}" failed: ${error}`, isError: true };
+      this.logger.error(
+        `Tool "${tc.name}" failed: ${error instanceof Error ? error.message : error}`,
+      );
+      return {
+        output: `The tool "${tc.name}" encountered an internal error. Please try again or rephrase your request.`,
+        isError: true,
+      };
     } finally {
       clearTimeout(timeout);
     }

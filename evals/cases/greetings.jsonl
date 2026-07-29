@@ -1,0 +1,5 @@
+{"id":"greeting-001","category":"greetings","userMessage":"Hola","expected":{"toolCalls":[],"responseContain":["ayudar","Hola"]}}
+{"id":"greeting-002","category":"greetings","userMessage":"Buenos días","expected":{"toolCalls":[],"responseContain":["Buenos días","ayudar"]}}
+{"id":"greeting-003","category":"greetings","userMessage":"Buenas tardes, cómo estás?","expected":{"toolCalls":[],"responseContain":["Buenas tardes","bien"]}}
+{"id":"greeting-004","category":"greetings","userMessage":"Hola, estás ahí?","expected":{"toolCalls":[],"responseContain":["Sí","ayudar"]}}
+{"id":"greeting-005","category":"greetings","userMessage":"Buenas noches, qué tal?","expected":{"toolCalls":[],"responseContain":["Buenas noches","ayudarte"]}}

@@ -49,7 +49,35 @@ export async function bootstrap(): Promise<void> {
     extended: true,
   });
 
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          'default-src': ["'none'"],
+          'frame-ancestors': ["'none'"],
+          'form-action': ["'none'"],
+          'upgrade-insecure-requests': [],
+          'base-uri': ["'none'"],
+        },
+      },
+      crossOriginOpenerPolicy: { policy: 'same-origin' },
+      crossOriginEmbedderPolicy: { policy: 'require-corp' },
+      originAgentCluster: true,
+      dnsPrefetchControl: { allow: false },
+      referrerPolicy: { policy: 'no-referrer' },
+      strictTransportSecurity: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+      xContentTypeOptions: true,
+      xDownloadOptions: true,
+      xFrameOptions: { action: 'deny' },
+      xPermittedCrossDomainPolicies: { permittedPolicies: 'none' },
+      xPoweredBy: false,
+      xXssProtection: true,
+    }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -65,6 +93,11 @@ export async function bootstrap(): Promise<void> {
     .filter(Boolean);
   if (rawOrigins.length === 0) {
     logger.warn('CORS_ALLOWED_ORIGINS is empty. Dashboard will not connect.');
+  }
+  if (env.NODE_ENV === 'production' && rawOrigins.includes('*')) {
+    logger.warn(
+      'CORS allows all origins (*) in production. Set CORS_ALLOWED_ORIGINS to specific URLs.',
+    );
   }
   const corsOrigins = rawOrigins.includes('*') ? '*' : rawOrigins;
   app.enableCors({

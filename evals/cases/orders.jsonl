@@ -1,0 +1,10 @@
+{"id":"order-001","category":"order","userMessage":"Quiero comprar el vestido rojo, talla M","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"create_order"}],"shouldCreateOrder":true}}
+{"id":"order-002","category":"order","userMessage":"Necesito 2 unidades de la mochila azul, me pueden ayudar?","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"create_order"}],"shouldCreateOrder":true}}
+{"id":"order-003","category":"order","userMessage":"Quiero hacer un pedido de 3 camisetas blancas talla L","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"create_order"}],"shouldCreateOrder":true}}
+{"id":"order-004","category":"order","userMessage":"Me llevo el laptop HP, cuánto tiempo de garantía tiene?","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"get_product"}],"responseContain":["garantía","HP"]}}
+{"id":"order-005","category":"order","userMessage":"Quiero encargar los tenis negros y una gorra, me los pueden traer?","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"create_order"}],"shouldCreateOrder":true}}
+{"id":"order-006","category":"order","userMessage":"Hola, ya vi el catálogo, quiero 5 pares de medias y 2 camisas","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"create_order"}],"shouldCreateOrder":true}}
+{"id":"order-007","category":"order","userMessage":"Me gustó el bolso de cuero, cómo hago para comprarlo?","expected":{"toolCalls":[{"name":"search_catalog"},{"name":"create_order"}],"shouldCreateOrder":true}}
+{"id":"order-008","category":"order","userMessage":"Puedo pagar contra entrega?","expected":{"toolCalls":[],"responseContain":["método de pago","pago"]}}
+{"id":"order-009","category":"order","userMessage":"Hasta qué hora hacen envíos hoy?","expected":{"toolCalls":[{"name":"get_business_info"}],"responseContain":["horario","envío"]}}
+{"id":"order-010","category":"order","userMessage":"Aceptan transferencia bancaria o solo tarjeta?","expected":{"toolCalls":[],"responseContain":["transferencia","tarjeta","pago"]}}

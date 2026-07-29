@@ -10,11 +10,15 @@ import type { TurnContext } from '@core/domain/types';
 import { REDIS_CLIENT_TOKEN, FEATURES_TOKEN } from '@core/tokens';
 import type { Features } from '@config/features';
 
+const FALLBACK_TTL_MS = 1800_000;
+
 @Injectable()
 export class ExactCacheAdapter implements ResponseCachePort {
   readonly name = 'exact';
   private readonly logger = new Logger(ExactCacheAdapter.name);
   private readonly prefix = 'cache:exact:';
+
+  private readonly fallback = new Map<string, { payload: string; expiresAt: number }>();
 
   constructor(
     @Inject(REDIS_CLIENT_TOKEN) private readonly redis: Redis,
@@ -38,11 +42,38 @@ export class ExactCacheAdapter implements ResponseCachePort {
     return true;
   }
 
+  private readFallback(key: string): string | null {
+    const entry = this.fallback.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.fallback.delete(key);
+      return null;
+    }
+    return entry.payload;
+  }
+
+  private writeFallback(key: string, payload: string): void {
+    this.fallback.set(key, { payload, expiresAt: Date.now() + FALLBACK_TTL_MS });
+  }
+
+  private deleteFallback(keys: string[]): number {
+    let count = 0;
+    for (const k of keys) {
+      if (this.fallback.delete(k)) count++;
+    }
+    return count;
+  }
+
+  private fallbackKeys(pattern: string): string[] {
+    const prefix = pattern.replace(/\*$/, '');
+    return [...this.fallback.keys()].filter((k) => k.startsWith(prefix));
+  }
+
   async lookup(query: string, ctx: TurnContext): Promise<CacheHit | null> {
     if (!this.isCacheable(ctx)) return null;
 
     const key = this.buildKey(ctx.businessId, query);
-    const raw = await this.redis.get(key).catch(() => null);
+    const raw = await this.redis.get(key).catch(() => this.readFallback(key));
     if (!raw) return null;
 
     try {
@@ -69,38 +100,49 @@ export class ExactCacheAdapter implements ResponseCachePort {
       cachedAt: new Date().toISOString(),
     });
 
-    await this.redis
+    const stored = await this.redis
       .setex(key, this.features.cache.exactTtlSeconds, payload)
+      .then(() => true)
       .catch((err: Error) => {
-        this.logger.warn(`Failed to store cache: ${err.message}`);
+        this.logger.warn(`Redis store failed, using in-memory fallback: ${err.message}`);
+        this.writeFallback(key, payload);
+        return false;
       });
-    this.logger.debug(`Exact cache STORE for business=${ctx.businessId}`);
+    this.logger.debug(
+      `Exact cache STORE${stored ? '' : ' (in-memory fallback)'} for business=${ctx.businessId}`,
+    );
   }
 
   async invalidate(businessId: string): Promise<number> {
     const pattern = this.scanPattern(businessId);
-    const keysToDelete: string[] = [];
-    let cursor = '0';
+
+    let redisCount = 0;
     try {
+      const keysToDelete: string[] = [];
+      let cursor = '0';
       do {
         const [nextCursor, keys] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
         cursor = nextCursor;
         keysToDelete.push(...keys);
       } while (cursor !== '0');
+
+      if (keysToDelete.length > 0) {
+        await this.redis.del(...keysToDelete);
+        redisCount = keysToDelete.length;
+      }
     } catch (err) {
-      this.logger.warn(`Failed to scan cache keys: ${err}`);
-      return 0;
+      this.logger.warn(`Failed to scan Redis cache keys: ${err}`);
     }
 
-    if (keysToDelete.length === 0) return 0;
+    const fallbackKeys = this.fallbackKeys(pattern);
+    const fallbackCount = this.deleteFallback(fallbackKeys);
+    const total = redisCount + fallbackCount;
 
-    await this.redis.del(...keysToDelete).catch((err: Error) => {
-      this.logger.warn(`Failed to invalidate cache: ${err.message}`);
-    });
-
-    this.logger.log(
-      `Invalidated ${keysToDelete.length} exact cache entries for business=${businessId}`,
-    );
-    return keysToDelete.length;
+    if (total > 0) {
+      this.logger.log(
+        `Invalidated ${total} exact cache entries for business=${businessId}${redisCount > 0 && fallbackCount > 0 ? ` (${redisCount} redis, ${fallbackCount} fallback)` : ''}`,
+      );
+    }
+    return total;
   }
 }
