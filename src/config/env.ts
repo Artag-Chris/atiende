@@ -208,11 +208,20 @@ export const EnvSchema = z.object({
   // ============================================================
   DASHBOARD_URL: z.string().url().default('http://localhost:3001'),
   CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3001'),
-  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 chars').optional(),
+  JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 chars'),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
 
   // ============================================================
-  // 20. NOTIFICATIONS
+  // 20. SEEDING (dev only)
+  // ============================================================
+  SEED_ADMIN_EMAIL: z.string().email().default('admin@atiende.dev'),
+  SEED_ADMIN_PASSWORD: z.string().min(6).default('admin123'),
+  SEED_CHRISTIAN_EMAIL: z.string().email().default('christian@atiende.dev'),
+  SEED_CHRISTIAN_PASSWORD: z.string().min(6).default('vakaloka88!'),
+
+  // ============================================================
+  // 21. NOTIFICATIONS
   // ============================================================
   NOTIFICATIONS_PROVIDER: z.enum(['resend', 'postmark', 'smtp', 'none']).default('none'),
   RESEND_API_KEY: z.string().optional(),

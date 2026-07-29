@@ -10,6 +10,7 @@ import { ToolsModule } from '../modules/tools/tools.module';
 import { RedisModule } from '../modules/infrastructure/redis/redis.module';
 import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
+import { AuthModule } from '../modules/auth/auth.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
 import { ResponsePolicyModule } from '../modules/response-policy/response-policy.module';
 import { CacheModule } from '../modules/cache/cache.module';
@@ -90,6 +91,9 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Caching -----
   if (features.cache.exact || features.cache.semantic) modules.push(CacheModule);
+
+  // ----- Auth (siempre habilitado) -----
+  modules.push(AuthModule);
 
   // ----- Dashboard API (siempre habilitado) -----
   modules.push(DashboardModule);

@@ -1,8 +1,19 @@
-import { Controller, Get, Param, Inject, Query, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Inject,
+  Query,
+  Logger,
+  NotFoundException,
+  UseGuards,
+} from '@nestjs/common';
 import { CONVERSATION_REPOSITORY_TOKEN, MESSAGE_REPOSITORY_TOKEN } from '@core/tokens';
 import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('api/dashboard')
 export class DashboardController {
   private readonly logger = new Logger(DashboardController.name);

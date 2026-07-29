@@ -41,9 +41,54 @@ model Business {
   responseCache      ResponseCache[]
   agentRuns          AgentRun[]
   knowledgeDocuments KnowledgeDocument[]
+  businessUsers      BusinessUser[]
 
   @@index([archivedAt])
   @@map("businesses")
+}
+
+// ============================================================================
+// DASHBOARD USERS
+// ============================================================================
+
+/// Usuarios del dashboard web. Cada uno pertenece a un business.
+model BusinessUser {
+  id         String            @id @default(uuid()) @db.Uuid
+  businessId String            @map("business_id") @db.Uuid
+  email      String            @unique
+  name       String
+  password   String
+  role       BusinessUserRole  @default(ADMIN)
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  loginAttempts LoginAttempt[]
+
+  @@index([businessId])
+  @@map("business_users")
+}
+
+model LoginAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @map("user_id") @db.Uuid
+  email     String
+  success   Boolean
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user BusinessUser? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@map("login_attempts")
+}
+
+enum BusinessUserRole {
+  ADMIN
+  SUPER_ADMIN
+
+  @@map("business_user_role")
 }
 
 // ============================================================================
