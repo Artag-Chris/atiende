@@ -32,7 +32,14 @@ export class AuthService {
 
     this.logger.log(`Successful login: ${email} (${user.role})`);
 
-    return this.buildTokens(user.id, user.email, user.businessId, user.role, user.name);
+    return this.buildTokens(
+      user.id,
+      user.email,
+      user.businessId,
+      user.role,
+      user.name,
+      user.tokenVersion,
+    );
   }
 
   async refresh(refreshToken: string) {
@@ -44,8 +51,9 @@ export class AuthService {
         role: string;
         name: string;
         type: string;
+        tokenVersion: number;
       }>(refreshToken, {
-        secret: this.config.get('JWT_SECRET'),
+        secret: this.config.get('JWT_REFRESH_SECRET'),
       });
 
       if (payload.type !== 'refresh') {
@@ -55,7 +63,23 @@ export class AuthService {
       const user = await this.prisma.businessUser.findUnique({ where: { id: payload.sub } });
       if (!user) throw new UnauthorizedException('User not found');
 
-      return this.buildTokens(user.id, user.email, user.businessId, user.role, user.name);
+      if (payload.tokenVersion !== user.tokenVersion) {
+        throw new UnauthorizedException('Refresh token has been revoked');
+      }
+
+      await this.prisma.businessUser.update({
+        where: { id: user.id },
+        data: { tokenVersion: { increment: 1 } },
+      });
+
+      return this.buildTokens(
+        user.id,
+        user.email,
+        user.businessId,
+        user.role,
+        user.name,
+        user.tokenVersion + 1,
+      );
     } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
@@ -67,18 +91,19 @@ export class AuthService {
     businessId: string,
     role: string,
     name: string,
+    tokenVersion: number,
   ) {
     const payload = { sub: userId, email, businessId, role };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        expiresIn: this.config.get('JWT_EXPIRES_IN', '7d'),
+        expiresIn: this.config.get('JWT_EXPIRES_IN', '1h'),
       }),
       this.jwtService.signAsync(
-        { ...payload, name, type: 'refresh' },
+        { ...payload, name, tokenVersion, type: 'refresh' },
         {
-          secret: this.config.get('JWT_SECRET'),
-          expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '30d'),
+          secret: this.config.get('JWT_REFRESH_SECRET'),
+          expiresIn: this.config.get('JWT_REFRESH_EXPIRES_IN', '7d'),
         },
       ),
     ]);

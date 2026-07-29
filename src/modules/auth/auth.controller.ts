@@ -30,6 +30,7 @@ export class AuthController {
     return this.authService.login(parsed.email, parsed.password, ip, userAgent);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(@Body() body: unknown) {

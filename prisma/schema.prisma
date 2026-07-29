@@ -53,14 +53,15 @@ model Business {
 
 /// Usuarios del dashboard web. Cada uno pertenece a un business.
 model BusinessUser {
-  id         String            @id @default(uuid()) @db.Uuid
-  businessId String            @map("business_id") @db.Uuid
-  email      String            @unique
-  name       String
-  password   String
-  role       BusinessUserRole  @default(ADMIN)
-  createdAt  DateTime          @default(now()) @map("created_at")
-  updatedAt  DateTime          @updatedAt @map("updated_at")
+  id           String            @id @default(uuid()) @db.Uuid
+  businessId   String            @map("business_id") @db.Uuid
+  email        String            @unique
+  name         String
+  password     String
+  role         BusinessUserRole  @default(ADMIN)
+  tokenVersion Int               @default(0) @map("token_version")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
 
   business   Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   loginAttempts LoginAttempt[]

@@ -15,6 +15,7 @@ const mockUser = {
   name: 'Admin',
   password: hashedPassword,
   role: 'ADMIN' as const,
+  tokenVersion: 3,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -23,6 +24,7 @@ function createMockPrisma() {
   return {
     businessUser: {
       findUnique: vi.fn(),
+      update: vi.fn().mockResolvedValue(mockUser),
     },
     loginAttempt: {
       create: vi.fn(),
@@ -111,18 +113,39 @@ describe('AuthService', () => {
   describe('refresh', () => {
     it('returns new tokens when refresh token is valid', async () => {
       prisma.businessUser.findUnique.mockResolvedValue(mockUser);
+      prisma.businessUser.update.mockResolvedValue({ ...mockUser, tokenVersion: 4 });
       jwt.verifyAsync.mockResolvedValue({
         sub: mockUser.id,
         email: mockUser.email,
         businessId: mockUser.businessId,
         role: mockUser.role,
         name: mockUser.name,
+        tokenVersion: mockUser.tokenVersion,
         type: 'refresh',
       });
 
       const result = await service.refresh('valid-refresh-token');
       expect(result.accessToken).toBe('mock-token');
       expect(result.refreshToken).toBe('mock-token');
+      expect(prisma.businessUser.update).toHaveBeenCalledWith({
+        where: { id: mockUser.id },
+        data: { tokenVersion: { increment: 1 } },
+      });
+    });
+
+    it('throws when token version does not match', async () => {
+      prisma.businessUser.findUnique.mockResolvedValue(mockUser);
+      jwt.verifyAsync.mockResolvedValue({
+        sub: mockUser.id,
+        email: mockUser.email,
+        businessId: mockUser.businessId,
+        role: mockUser.role,
+        name: mockUser.name,
+        tokenVersion: 999,
+        type: 'refresh',
+      });
+
+      await expect(service.refresh('stale-refresh-token')).rejects.toThrow(UnauthorizedException);
     });
 
     it('throws when token type is not refresh', async () => {
@@ -131,6 +154,7 @@ describe('AuthService', () => {
         email: mockUser.email,
         businessId: mockUser.businessId,
         role: mockUser.role,
+        tokenVersion: 0,
         type: 'access',
       });
 
@@ -150,6 +174,7 @@ describe('AuthService', () => {
         businessId: 'biz-1',
         role: 'ADMIN',
         name: 'Deleted',
+        tokenVersion: 0,
         type: 'refresh',
       });
 
