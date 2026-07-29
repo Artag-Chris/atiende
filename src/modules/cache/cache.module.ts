@@ -1,8 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ExactCacheAdapter } from './exact/exact-cache.adapter';
 import { PgvectorSemanticCacheAdapter } from './semantic/pgvector-semantic-cache.adapter';
 import { EXACT_CACHE_TOKEN, SEMANTIC_CACHE_TOKEN } from '@core/tokens';
 
+@Global()
 @Module({
   providers: [
     {
