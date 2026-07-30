@@ -242,11 +242,14 @@ export class ProcessInboundMessageUseCase {
         const escalationToolCall = agentResponse.toolCallsMade.find(
           (t) => t.name === 'escalate_to_human',
         );
-        const reason = (escalationToolCall?.input as Record<string, unknown>)?.reason as
-          | string
-          | undefined;
+        const input = escalationToolCall?.input as Record<string, unknown> | undefined;
+        const reason = input?.reason as string | undefined;
+        const urgency = input?.urgency as string | undefined;
         await this.conversationRepo
-          .updateStatus(conversation.id, 'ESCALATED', { escalationReason: reason })
+          .updateStatus(conversation.id, 'ESCALATED', {
+            escalationReason: reason,
+            urgency: urgency?.toUpperCase(),
+          })
           .catch((err: unknown) => this.logger.warn(`Failed to persist escalation status: ${err}`));
       }
     }

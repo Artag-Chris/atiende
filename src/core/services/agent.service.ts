@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import type { LLMProviderPort } from '@core/ports/llm-provider.port';
+import type { LLMProviderPort, ChatResponse } from '@core/ports/llm-provider.port';
 import type { AgentRunRepositoryPort } from '@core/ports/agent-run-repository.port';
 import type { ToolModulePort } from '@core/ports/tool-module.port';
 import type { AIConfig } from '@config/ai.config';
@@ -91,7 +91,7 @@ export class AgentService {
       [];
 
     for (let iteration = 0; iteration < maxIterations; iteration++) {
-      const response = await this.llm.chat({
+      const response = await this.chatWithAbort({
         systemPrompt: input.systemPrompt,
         messages,
         tools: toolDefinitions.length > 0 ? toolDefinitions : undefined,
@@ -171,7 +171,7 @@ export class AgentService {
     }
 
     if (toolCallsMade.length > 0 && !lastText) {
-      const finalResponse = await this.llm.chat({
+      const finalResponse = await this.chatWithAbort({
         systemPrompt: input.systemPrompt,
         messages,
         tools: toolDefinitions.length > 0 ? toolDefinitions : undefined,
@@ -230,6 +230,16 @@ export class AgentService {
       latencyMs,
       toolCallsMade,
     };
+  }
+
+  private async chatWithAbort(req: Parameters<LLMProviderPort['chat']>[0]): Promise<ChatResponse> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.config.primary.timeoutMs);
+    try {
+      return await this.llm.chat({ ...req, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async executeToolWithTimeout(

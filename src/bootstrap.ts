@@ -8,6 +8,8 @@ import { AppModule } from './app.module';
 import { loadEnv } from './config/env';
 import { buildFeatures } from './config/features';
 import { mapLogLevels } from './common/utils/logger.utils';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { JsonLogger } from './common/logger/json-logger.service';
 import { setupForceShutdown } from './common/utils/shutdown.utils';
 
 export async function bootstrap(): Promise<void> {
@@ -36,9 +38,16 @@ export async function bootstrap(): Promise<void> {
     );
   }
 
+  const loggerInstance =
+    env.LOG_FORMAT === 'json'
+      ? new JsonLogger(
+          env.LOG_LEVEL === 'trace' ? 'verbose' : env.LOG_LEVEL === 'info' ? 'log' : env.LOG_LEVEL,
+        )
+      : mapLogLevels(env.LOG_LEVEL);
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(env, features), {
-    bufferLogs: false,
-    logger: mapLogLevels(env.LOG_LEVEL),
+    bufferLogs: env.LOG_FORMAT === 'json',
+    logger: loggerInstance,
     bodyParser: true,
     rawBody: true,
   });
@@ -78,6 +87,8 @@ export async function bootstrap(): Promise<void> {
       xXssProtection: true,
     }),
   );
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({

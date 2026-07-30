@@ -138,12 +138,20 @@ model ProductEmbedding {
 // ============================================================================
 
 enum ConversationStatus {
-  ACTIVE // agente atendiendo normalmente
+  ACTIVE // agente atentiendo normalmente
   ESCALATED // pasó a humano del business
   RESOLVED // cerrada (orden creada o cliente satisfecho)
   ABANDONED // sin actividad > 24h
 
   @@map("conversation_status")
+}
+
+enum ConversationUrgency {
+  LOW
+  MEDIUM
+  HIGH
+
+  @@map("conversation_urgency")
 }
 
 enum Channel {
@@ -169,8 +177,9 @@ model Conversation {
   summaryText        String?            @map("summary_text")
   lastMessageAt      DateTime?          @map("last_message_at")
   escalatedAt        DateTime?          @map("escalated_at")
-  escalationReason   String?            @map("escalation_reason")
-  createdAt          DateTime           @default(now()) @map("created_at")
+  escalationReason   String?             @map("escalation_reason")
+  urgency            ConversationUrgency @default(MEDIUM)
+  createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
   business  Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)

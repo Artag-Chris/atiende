@@ -181,6 +181,10 @@ export class KnowledgeService {
     return this.docRepo.findByBusiness(businessId);
   }
 
+  async getDocument(id: string) {
+    return this.docRepo.findById(id);
+  }
+
   async deleteDocument(id: string): Promise<void> {
     await this.docRepo.softDelete(id);
   }

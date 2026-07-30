@@ -18,7 +18,7 @@ export interface ConversationRepositoryPort {
   updateStatus(
     id: string,
     status: 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED',
-    extra?: { escalationReason?: string },
+    extra?: { escalationReason?: string; urgency?: string },
   ): Promise<void>;
   findEscalated(
     businessId?: string,

@@ -11,10 +11,17 @@ import {
   MaxFileSizeValidator,
   FileTypeValidator,
   Logger,
+  UseGuards,
+  Req,
+  NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KnowledgeService } from './knowledge.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('api/knowledge')
 export class KnowledgeController {
   private readonly logger = new Logger(KnowledgeController.name);
@@ -23,22 +30,27 @@ export class KnowledgeController {
 
   @Post('text')
   async ingestText(
+    @Req() req: Request,
     @Body()
     body: {
-      businessId: string;
       kind: 'FAQ' | 'POLICY' | 'PDF_CATALOG' | 'MANUAL' | 'NOTES' | 'OTHER';
       title: string;
       source: string;
       text: string;
     },
   ) {
-    const docId = await this.knowledgeService.ingestFromText(body);
+    const user = req.user as { businessId: string; role: string } | undefined;
+    const docId = await this.knowledgeService.ingestFromText({
+      businessId: user?.businessId ?? '',
+      ...body,
+    });
     return { documentId: docId, status: 'indexed' };
   }
 
   @Post('upload')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
+    @Req() req: Request,
     @UploadedFile(
       new ParseFilePipe({
         validators: [
@@ -50,13 +62,13 @@ export class KnowledgeController {
     file: Express.Multer.File,
     @Body()
     body: {
-      businessId: string;
       kind: 'FAQ' | 'POLICY' | 'PDF_CATALOG' | 'MANUAL' | 'NOTES' | 'OTHER';
       title?: string;
     },
   ) {
+    const user = req.user as { businessId: string; role: string } | undefined;
     const docId = await this.knowledgeService.ingestFromFile({
-      businessId: body.businessId,
+      businessId: user?.businessId ?? '',
       kind: body.kind,
       title: body.title ?? file.originalname,
       source: file.originalname,
@@ -66,13 +78,20 @@ export class KnowledgeController {
     return { documentId: docId, status: 'indexed' };
   }
 
-  @Get(':businessId')
-  async list(@Param('businessId') businessId: string) {
-    return this.knowledgeService.getDocuments(businessId);
+  @Get()
+  async list(@Req() req: Request) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+    return this.knowledgeService.getDocuments(user?.businessId ?? '');
   }
 
   @Delete(':id')
-  async delete(@Param('id') id: string) {
+  async delete(@Param('id') id: string, @Req() req: Request) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+    const doc = await this.knowledgeService.getDocument(id);
+    if (!doc) throw new NotFoundException('Document not found');
+    if (user?.role !== 'SUPER_ADMIN' && doc.businessId !== user?.businessId) {
+      throw new ForbiddenException('Access denied to this document');
+    }
     await this.knowledgeService.deleteDocument(id);
     return { deleted: true };
   }

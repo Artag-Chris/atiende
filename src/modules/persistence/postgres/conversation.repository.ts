@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
-import type { Conversation, Channel } from '@prisma/client';
+import type { Conversation, Channel, ConversationUrgency } from '@prisma/client';
 
 @Injectable()
 export class ConversationRepository {
@@ -65,7 +65,7 @@ export class ConversationRepository {
   async updateStatus(
     id: string,
     status: 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED',
-    extra?: { escalationReason?: string },
+    extra?: { escalationReason?: string; urgency?: string },
   ): Promise<void> {
     await this.prisma.conversation.update({
       where: { id },
@@ -74,6 +74,7 @@ export class ConversationRepository {
         ...(status === 'ESCALATED' && {
           escalatedAt: new Date(),
           escalationReason: extra?.escalationReason,
+          urgency: (extra?.urgency as ConversationUrgency) ?? undefined,
         }),
       },
     });

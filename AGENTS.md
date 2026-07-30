@@ -11,7 +11,15 @@
 
 ## Current state
 
-The project is in **scaffold phase** (week 1 of 6-week roadmap). All adapter directories under `src/modules/` contain only `.gitkeep` files. `CoreModule` and `module-registry.ts` are empty shells. No concrete adapters, no tests, no migrations applied yet.
+The project is **active development** with all core adapters implemented:
+
+- **Auth**: JWT login with refresh token rotation, role-based guards (RolesGuard), Zod validation, rate limiting, audit trail (LoginAttempt).
+- **Dashboard**: Next.js app at `dashboard/` (sibling directory) with auth integration, escalations list (polling), conversation detail view.
+- **WhatsApp channel**: Webhook receiver with HMAC signature verification (skipped in dev mode), idempotency via `externalMessageId`, BullMQ queue.
+- **LLM providers**: Claude (primary), OpenAI (fallback + embeddings), Gemini, Groq — all with circuit breaker and retry logic.
+- **Caching**: Exact cache (Redis sha256) and semantic cache (pgvector cosine similarity) with in-memory fallback when Redis unavailable.
+- **Tests**: 96 unit tests across 13 test files passing (auth, agent, cache, tools, webhook, response policy).
+- **Prisma**: Full schema with all models, seed script for admin users. Uses `db push` (shadow DB has encoding issues).
 
 ## Commands
 

@@ -212,22 +212,24 @@ Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `build`, `ci`
 
 ## Estado actual del proyecto
 
-**Fase:** scaffold inicial (semana 1 del [roadmap](docs/03_ROADMAP.md)).
+**Fase:** desarrollo activo.
 
 **Lo que YA está:**
-- Estructura de carpetas hexagonal.
-- Configuración base (TypeScript, Prisma, Docker, ESLint).
-- Schema de DB con todos los modelos del arquitectura.
-- Interfaces (ports) del Adapter pattern.
+- Auth completa (JWT, refresh token rotation, roles, rate limiting, audit trail).
+- Dashboard en Next.js (login, escalations, conversaciones, polling).
+- Canal WhatsApp (webhook con verificación HMAC, idempotencia, BullMQ).
+- Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq — todos con circuit breaker.
+- Caching multinivel: exacto (Redis) + semántico (pgvector) con fallback in-memory.
+- 96 tests unitarios pasando en 13 archivos.
+- Seed script para usuarios admin.
 
 **Lo que NO está aún:**
-- Webhook receiver implementado.
-- Adapters concretos (Claude, WhatsApp).
-- BullMQ workers.
-- Tests.
-- Migrations aplicadas.
+- Telemetría y monitoreo (OpenTelemetry, Sentry).
+- Canal Web Chat.
+- Canal Telegram.
+- Evaluaciones (evals) y pipeline CI/CD.
 
-Ver `docs/03_ROADMAP.md` para la lista detallada por semana.
+Ver `docs/03_ROADMAP.md` para el roadmap completo.
 
 ---
 
