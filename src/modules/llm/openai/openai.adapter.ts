@@ -4,6 +4,7 @@ import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
 import { calculateCost, type AIConfig } from '@config/ai.config';
 import { AI_CONFIG_TOKEN } from '@core/tokens';
+import { extractRawFunctionCalls } from '../raw-function-calls';
 
 @Injectable()
 export class OpenAIAdapter implements LLMProviderPort {
@@ -41,7 +42,8 @@ export class OpenAIAdapter implements LLMProviderPort {
     const latencyMs = Date.now() - startTime;
 
     const text = choice.message.content ?? '';
-    const toolCalls = this.extractToolCalls(choice.message);
+    const nativeToolCalls = this.extractToolCalls(choice.message);
+    const { toolCalls, cleanedText } = extractRawFunctionCalls(text, nativeToolCalls);
     const stopReason = this.mapStopReason(choice.finish_reason);
 
     const usage = {
@@ -58,7 +60,7 @@ export class OpenAIAdapter implements LLMProviderPort {
     );
 
     return {
-      text,
+      text: cleanedText,
       toolCalls,
       stopReason,
       usage,

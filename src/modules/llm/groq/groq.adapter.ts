@@ -5,6 +5,7 @@ import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
 import { calculateCost, type AIConfig } from '@config/ai.config';
 import { AI_CONFIG_TOKEN } from '@core/tokens';
+import { extractRawFunctionCalls, stripRawFunctionCalls } from '../raw-function-calls';
 
 @Injectable()
 export class GroqAdapter implements LLMProviderPort {
@@ -51,7 +52,8 @@ export class GroqAdapter implements LLMProviderPort {
       const latencyMs = Date.now() - startTime;
 
       const text = choice.message.content ?? '';
-      const toolCalls = this.extractToolCalls(choice.message);
+      const nativeToolCalls = this.extractToolCalls(choice.message);
+      const { toolCalls, cleanedText } = extractRawFunctionCalls(text, nativeToolCalls);
       const stopReason = this.mapStopReason(choice.finish_reason);
 
       const usage = {
@@ -68,7 +70,7 @@ export class GroqAdapter implements LLMProviderPort {
       );
 
       return {
-        text: this.stripRawFunctionCalls(text),
+        text: cleanedText,
         toolCalls,
         stopReason,
         usage,
@@ -93,7 +95,7 @@ export class GroqAdapter implements LLMProviderPort {
         };
         const cost = calculateCost(this.model, usage);
         return {
-          text: this.stripRawFunctionCalls(choice?.message?.content ?? ''),
+          text: stripRawFunctionCalls(choice?.message?.content ?? ''),
           toolCalls: [],
           stopReason: 'end_turn',
           usage,
@@ -205,9 +207,5 @@ export class GroqAdapter implements LLMProviderPort {
       default:
         return 'other';
     }
-  }
-
-  private stripRawFunctionCalls(text: string): string {
-    return text.replace(/<function:[\s\S]*?<\/function>/g, '').trim();
   }
 }

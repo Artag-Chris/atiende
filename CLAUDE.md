@@ -218,10 +218,10 @@ Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `build`, `ci`
 - Auth completa (JWT, refresh token rotation, roles, rate limiting, audit trail).
 - Dashboard en Next.js (login, escalations, conversaciones, polling). Human takeover: el detalle de conversación permite responder al cliente (`POST .../send`, solo `ESCALATED`, rol `HUMAN`) y resolver (`POST .../resolve`); mientras está `ESCALATED` el pipeline entrante persiste el USER pero la IA no responde. `MaintenanceModule` (cola BullMQ `MAINTENANCE`, repeatable cada `ESCALATION_EXPIRY_INTERVAL_HOURS`) auto-expira escalaciones inactivas > `ESCALATION_EXPIRY_HOURS` desde `lastMessageAt` a `ACTIVE`.
 - Canal WhatsApp (webhook con verificación HMAC, BullMQ). Cada mensaje de texto del payload se procesa (NFR-8: sin truncar al primero); el InboundMessage se persiste ANTES de encolar (zero-loss); el dedup de Redis es best-effort (si cae, protege la constraint única de DB + el dedup del use case). La persistencia inicial del pipeline (conversation + inbound + USER message) es atómica vía `UNIT_OF_WORK_TOKEN` (PostgresUnitOfWork, `$transaction`), con USER save idempotente por `Message.inboundMessageId` (único). El dedup solo ignora mensajes YA procesados (`processedAt`); `processedAt` se marca DESPUÉS del envío exitoso a Meta (o sin envío cuando el pipeline no responde, p.ej. escalado), así un job fallido se reintenta y re-envía en vez de perder el mensaje.
-- Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq — todos con circuit breaker.
+- Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq — todos con circuit breaker. Los adapters Groq/OpenAI parsean y eliminan el formato prompt-completion `<function.NAME{json}></function>` que algunos modelos emiten en vez de `tool_calls` nativos (`src/modules/llm/raw-function-calls.ts`), para que la sintaxis de tool-call jamás llegue al cliente.
 - Caching multinivel: exacto (Redis) + semántico (pgvector) con fallback in-memory.
 - Endpoint `/health` (liveness/readiness con check de DB) usado por el HEALTHCHECK del Dockerfile.
-- 168 tests unitarios pasando en 22 archivos.
+- 177 tests unitarios pasando en 23 archivos.
 - Seed script para usuarios admin.
 
 **Lo que NO está aún:**
