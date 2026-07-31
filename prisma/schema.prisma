@@ -189,12 +189,15 @@ model Conversation {
 
   @@unique([businessId, channel, customerIdentifier])
   @@index([businessId, status, lastMessageAt])
+  /// Soporta el barrido de expiración de escalaciones (status + inactividad).
+  @@index([status, lastMessageAt])
   @@map("conversations")
 }
 
 enum MessageRole {
   USER // cliente final (mensaje entrante WhatsApp)
   ASSISTANT // agente Atiende
+  HUMAN // respuesta escrita por un humano desde el dashboard
   TOOL // resultado de una tool ejecutada por el agente
   SYSTEM // marcadores internos (escalamiento, fin de turno, etc.)
 

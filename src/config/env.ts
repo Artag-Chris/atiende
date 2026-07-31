@@ -214,6 +214,14 @@ export const EnvSchema = z.object({
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
   // ============================================================
+  // 19b. HUMAN TAKEOVER / MANTENIMIENTO
+  // ============================================================
+  /** Horas de inactividad (lastMessageAt) antes de auto-desescalar a ACTIVE. */
+  ESCALATION_EXPIRY_HOURS: z.coerce.number().int().positive().default(72),
+  /** Cada cuántas horas corre el barrido de expiración de escalaciones. */
+  ESCALATION_EXPIRY_INTERVAL_HOURS: z.coerce.number().int().positive().default(6),
+
+  // ============================================================
   // 20. SEEDING (dev only)
   // ============================================================
   SEED_ADMIN_EMAIL: z.string().email().default('admin@atiende.dev'),

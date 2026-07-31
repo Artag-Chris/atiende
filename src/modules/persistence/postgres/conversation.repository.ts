@@ -37,6 +37,13 @@ export class ConversationRepository {
     });
   }
 
+  async touchLastMessage(id: string): Promise<void> {
+    await this.prisma.conversation.update({
+      where: { id },
+      data: { lastMessageAt: new Date() },
+    });
+  }
+
   async findEscalated(
     businessId?: string,
     options?: { limit?: number; offset?: number },
@@ -68,5 +75,16 @@ export class ConversationRepository {
         }),
       },
     });
+  }
+
+  async expireEscalated(cutoff: Date): Promise<number> {
+    const result = await this.prisma.conversation.updateMany({
+      where: {
+        status: 'ESCALATED',
+        OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: cutoff } }],
+      },
+      data: { status: 'ACTIVE' },
+    });
+    return result.count;
   }
 }

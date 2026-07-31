@@ -37,10 +37,14 @@ export class InboundProcessor extends WorkerHost {
           text: result.responseText,
         });
         this.logger.log(`Response sent to ${job.data.customerPhone}`);
+      }
 
-        if (result.inboundMessageId) {
-          await this.processInbound.markProcessed(result.inboundMessageId);
-        }
+      // At-least-once: si el send lanzó excepción nunca llegamos aquí y el job
+      // se reintenta. Si no hubo nada que enviar (escalado/dedup) o el send
+      // fue exitoso, marcamos processed para que un retry del webhook no
+      // vuelva a procesar el mensaje.
+      if (result.inboundMessageId) {
+        await this.processInbound.markProcessed(result.inboundMessageId);
       }
 
       this.logger.log(`Inbound message job ${job.id} completed: responded=${result.responded}`);

@@ -65,6 +65,19 @@ describe('InboundProcessor', () => {
     expect(processInbound.markProcessed).not.toHaveBeenCalled();
   });
 
+  it('marks processed without sending when escalated (no response)', async () => {
+    processInbound.execute = vi.fn().mockResolvedValue({
+      responded: false,
+      skipReason: 'escalated',
+      inboundMessageId: 'inb-esc',
+    });
+
+    await processor.process(createJob());
+
+    expect(whatsapp.send).not.toHaveBeenCalled();
+    expect(processInbound.markProcessed).toHaveBeenCalledWith('inb-esc');
+  });
+
   it('does not mark processed when there is no inbound message id', async () => {
     processInbound.execute = vi.fn().mockResolvedValue({
       responded: true,

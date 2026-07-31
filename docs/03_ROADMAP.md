@@ -124,12 +124,14 @@
   - `KnowledgeIndexer` worker en queue `KNOWLEDGE_INDEXING`.
   - Tool `search_knowledge(query, kind?)` en `src/modules/tools/knowledge/`.
   - Endpoint `POST /api/businesses/:id/knowledge` para upload desde dashboard.
-- [ ] **Dashboard Next.js v0:**
+- [x] **Dashboard Next.js v0:**
   - Login con magic link.
   - Lista de conversaciones del business.
   - Detalle de conversación.
   - Métricas básicas (mensajes hoy, costo hoy).
   - **Sección "Conocimiento"** — upload de PDFs / FAQs / políticas con status visible (`PENDING → INDEXED | FAILED`).
+- [x] **Human takeover:** responder al cliente desde el dashboard (`POST /api/dashboard/conversations/:id/send`, rol `HUMAN`, solo `ESCALATED`) + resolver (`POST .../resolve`). La IA queda muda mientras la conversación está escalada y retoma al resolver o al expirar la escalación.
+- [x] **Expiración automática de escalaciones:** `MaintenanceModule` (BullMQ repeatable cada `ESCALATION_EXPIRY_INTERVAL_HOURS`) pasa a `ACTIVE` las escalaciones inactivas > `ESCALATION_EXPIRY_HOURS` desde `lastMessageAt`.
 - [ ] **Notificación de escalamiento:** cuando `escalate_to_human` se llama, dashboard muestra alerta + opcionalmente email.
 
 ### AI-driven dev

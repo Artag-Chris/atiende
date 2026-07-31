@@ -15,6 +15,8 @@ export interface ConversationRepositoryPort {
     customerIdentifier: string,
   ): Promise<ConversationData>;
   findById(id: string): Promise<ConversationData | null>;
+  /** Actualiza lastMessageAt (respuesta humana saliente desde el dashboard). */
+  touchLastMessage(id: string): Promise<void>;
   updateStatus(
     id: string,
     status: 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED',
@@ -24,4 +26,9 @@ export interface ConversationRepositoryPort {
     businessId?: string,
     options?: { limit?: number; offset?: number },
   ): Promise<ConversationData[]>;
+  /**
+   * Cierra escalaciones inactivas: status ESCALATED con lastMessageAt anterior
+   * al cutoff pasan a ACTIVE. Devuelve cuántas actualizó.
+   */
+  expireEscalated(cutoff: Date): Promise<number>;
 }

@@ -38,6 +38,8 @@ export const QUEUE_NAMES = {
   CACHE_INVALIDATION: 'cache-invalidation',
   /** Notificaciones al business (escalamientos, alertas). */
   NOTIFICATION: 'notification',
+  /** Trabajos de mantenimiento periódicos (expiración de escalaciones). */
+  MAINTENANCE: 'maintenance',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -139,6 +141,8 @@ function workerConcurrencyFor(queueName: QueueName, env: Env): number {
       return 4;
     case QUEUE_NAMES.NOTIFICATION:
       return 4;
+    case QUEUE_NAMES.MAINTENANCE:
+      return 1;
   }
 }
 

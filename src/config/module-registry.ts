@@ -10,6 +10,7 @@ import { ToolsModule } from '../modules/tools/tools.module';
 import { RedisModule } from '../modules/infrastructure/redis/redis.module';
 import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
+import { MaintenanceModule } from '../modules/maintenance/maintenance.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { HealthModule } from '../modules/health/health.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
@@ -101,6 +102,9 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Dashboard API (siempre habilitado) -----
   modules.push(DashboardModule);
+
+  // ----- Mantenimiento (siempre habilitado — jobs repeatable) -----
+  modules.push(MaintenanceModule);
 
   return modules;
 }

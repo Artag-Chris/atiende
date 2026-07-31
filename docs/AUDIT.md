@@ -215,6 +215,12 @@ Estos los dejamos para iteraciones futuras. **Ninguno bloquea el siguiente paso 
 
 **Solución pendiente:** Agregar `@bull-board/api` + `@bull-board/express` cuando tengamos jobs corriendo (Semana 2+).
 
+### TD-10: `CORS_ALLOWED_ORIGINS=*` en producción
+
+**Problema:** El backend corre con `CORS_ALLOWED_ORIGINS=*` en el server remoto. Con el dashboard en modo rewrites (proxy de Vercel) no bloquea nada, pero es una mala práctica y el bootstrap lo advierte en `NODE_ENV=production`.
+
+**Solución pendiente:** Cuando el dashboard tenga un dominio estable, setear `CORS_ALLOWED_ORIGINS=https://<dominio-dashboard>` en el `.env` del server remoto y reiniciar. No bloquea el avance actual.
+
 ---
 
 ## Verificación final

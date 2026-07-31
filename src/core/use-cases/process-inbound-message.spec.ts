@@ -483,4 +483,51 @@ describe('ProcessInboundMessageUseCase', () => {
     expect(result.responded).toBe(true);
     expect(ctx.agent.runTurn).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps the AI silent when the conversation is escalated', async () => {
+    ctx.conversationRepo.getOrCreate = vi.fn().mockResolvedValue({
+      id: 'conv-1',
+      businessId: 'biz-1',
+      channel: 'WHATSAPP',
+      customerIdentifier: '573001234567',
+      status: 'ESCALATED',
+    });
+
+    const result = await ctx.useCase.execute(baseMessage);
+
+    expect(result.responded).toBe(false);
+    expect(result.skipReason).toBe('escalated');
+    expect(result.inboundMessageId).toBe('inb-1');
+    expect(ctx.agent.runTurn).not.toHaveBeenCalled();
+    expect(ctx.exactCache.store).not.toHaveBeenCalled();
+    expect(ctx.semanticCache.store).not.toHaveBeenCalled();
+    // El USER entrante sí se persiste para que el humano tenga contexto.
+    expect(ctx.messageRepo.save).toHaveBeenCalledTimes(1);
+    expect(ctx.messageRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ role: 'USER', inboundMessageId: 'inb-1' }),
+    );
+  });
+
+  it('returns the inbound id for escalated messages so they can be marked processed', async () => {
+    ctx.conversationRepo.getOrCreate = vi.fn().mockResolvedValue({
+      id: 'conv-1',
+      businessId: 'biz-1',
+      channel: 'WHATSAPP',
+      customerIdentifier: '573001234567',
+      status: 'ESCALATED',
+    });
+    ctx.inboundRepo.findByExternalId = vi.fn().mockResolvedValue({
+      id: 'inb-web',
+      businessId: 'biz-1',
+      externalMessageId: 'msg-1',
+      receivedAt: new Date(),
+      processedAt: null,
+    });
+
+    const result = await ctx.useCase.execute(baseMessage);
+
+    expect(result.responded).toBe(false);
+    expect(result.inboundMessageId).toBe('inb-web');
+    expect(ctx.inboundRepo.save).not.toHaveBeenCalled();
+  });
 });

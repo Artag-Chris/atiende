@@ -51,6 +51,8 @@ export interface ProcessResult {
   responseText?: string;
   error?: string;
   inboundMessageId?: string | null;
+  /** Motivo por el que el pipeline no respondió (p.ej. conversación escalada). */
+  skipReason?: 'escalated' | string;
 }
 
 @Injectable()
@@ -173,6 +175,17 @@ export class ProcessInboundMessageUseCase {
       if (result.alreadyProcessed) return { responded: false };
       conversation = result.convo;
       inboundMsgId = result.inboundMsgId;
+    }
+
+    if (conversation?.status === 'ESCALATED') {
+      // Human takeover: el mensaje entrante ya quedó persistido como USER.
+      // La IA queda muda; un humano atiende desde el dashboard. Al expirar la
+      // escalación (MaintenanceModule) la conversación vuelve a ACTIVE y la IA
+      // retoma.
+      this.logger.log(
+        `Conversation ${conversation.id} is ESCALATED — message queued for human, AI paused`,
+      );
+      return { responded: false, skipReason: 'escalated', inboundMessageId: inboundMsgId };
     }
 
     const conversationHistory = conversation
@@ -364,7 +377,9 @@ export class ProcessInboundMessageUseCase {
               content: [{ type: 'text', text }],
             });
           }
-        } else if (m.role === 'ASSISTANT') {
+        } else if (m.role === 'ASSISTANT' || m.role === 'HUMAN') {
+          // HUMAN se mapea a rol assistant para preservar la alternancia de
+          // roles de la API Anthropic cuando la IA retoma tras resolver.
           const tokenUsage = m.tokenUsage as Record<string, unknown> | undefined;
           const toolCalls =
             (tokenUsage?.toolCalls as Array<{

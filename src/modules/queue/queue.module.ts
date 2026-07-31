@@ -40,6 +40,15 @@ import { InboundProcessor } from './inbound.processor';
           removeOnFail: { count: 5000, age: 30 * 24 * 60 * 60 },
         },
       },
+      {
+        name: QUEUE_NAMES.MAINTENANCE,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+          removeOnComplete: { count: 100, age: 7 * 24 * 60 * 60 },
+          removeOnFail: { count: 500, age: 30 * 24 * 60 * 60 },
+        },
+      },
     ),
   ],
   providers: [InboundProcessor],
