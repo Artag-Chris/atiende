@@ -1,19 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { PrismaDbClient, PrismaService } from './prisma.service';
 import type { Conversation, Channel, ConversationUrgency } from '@prisma/client';
 
 @Injectable()
 export class ConversationRepository {
   private readonly logger = new Logger(ConversationRepository.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaDbClient) {}
 
   async getOrCreate(
     businessId: string,
     channel: Channel,
     customerIdentifier: string,
   ): Promise<Conversation> {
-    const existing = await this.prisma.conversation.findUnique({
+    return this.prisma.conversation.upsert({
       where: {
         businessId_channel_customerIdentifier: {
           businessId,
@@ -21,18 +21,8 @@ export class ConversationRepository {
           customerIdentifier,
         },
       },
-    });
-
-    if (existing) {
-      await this.prisma.conversation.update({
-        where: { id: existing.id },
-        data: { lastMessageAt: new Date() },
-      });
-      return existing;
-    }
-
-    return this.prisma.conversation.create({
-      data: {
+      update: { lastMessageAt: new Date() },
+      create: {
         businessId,
         channel,
         customerIdentifier,

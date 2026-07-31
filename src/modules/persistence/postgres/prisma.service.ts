@@ -1,5 +1,12 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
+
+/**
+ * Client de Prisma, global o transaction-scoped.
+ * Permite que los repositorios se construyan con el client global (DI)
+ * o con el client aislado de una $transaction interactiva (UnitOfWork).
+ */
+export type PrismaDbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {

@@ -46,6 +46,9 @@ export class KnowledgeService {
     const rawChunks = this.chunker.chunk({ text: data.text });
     try {
       await this.saveChunks(doc.id, data.businessId, data.kind, rawChunks);
+
+      const totalChunks = await this.chunkRepo.countByDocument(doc.id);
+      await this.docRepo.updateStatus(doc.id, 'INDEXED', { chunkCount: totalChunks });
     } catch (error) {
       await this.docRepo.updateStatus(doc.id, 'FAILED', {
         errorMessage: `Embedding failed: ${(error as Error).message}`,

@@ -3,6 +3,7 @@ export interface InboundMessageData {
   businessId: string;
   externalMessageId: string;
   receivedAt: Date;
+  processedAt?: Date | null;
 }
 
 export interface InboundMessageRepositoryPort {
@@ -11,6 +12,9 @@ export interface InboundMessageRepositoryPort {
     rawPayload: Record<string, unknown>;
     externalMessageId: string;
   }): Promise<InboundMessageData>;
-  existsByExternalId(businessId: string, externalMessageId: string): Promise<boolean>;
+  findByExternalId(
+    businessId: string,
+    externalMessageId: string,
+  ): Promise<InboundMessageData | null>;
   markProcessed(id: string): Promise<void>;
 }

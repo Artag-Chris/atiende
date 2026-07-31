@@ -211,9 +211,13 @@ model Message {
   content        Json        @map("content_jsonb")
   /// Tokens usados por este mensaje (solo en mensajes de ASSISTANT).
   tokenUsage     Json?       @map("token_usage_jsonb")
+  /// Origen del mensaje USER entrante (InboundMessage persistido por el webhook).
+  /// Único por mensaje → hace idempotente el USER save ante reintentos del job.
+  inboundMessageId String?   @unique @map("inbound_message_id") @db.Uuid
   createdAt      DateTime    @default(now()) @map("created_at")
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  inboundMessage InboundMessage? @relation(fields: [inboundMessageId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
   @@map("messages")
@@ -232,6 +236,7 @@ model InboundMessage {
   receivedAt        DateTime  @default(now()) @map("received_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages Message[]
 
   @@unique([businessId, externalMessageId])
   @@index([processedAt])

@@ -11,6 +11,7 @@ import { RedisModule } from '../modules/infrastructure/redis/redis.module';
 import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { AuthModule } from '../modules/auth/auth.module';
+import { HealthModule } from '../modules/health/health.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
 import { ResponsePolicyModule } from '../modules/response-policy/response-policy.module';
 import { CacheModule } from '../modules/cache/cache.module';
@@ -31,6 +32,9 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Infrastructure (siempre habilitada) -----
   modules.push(RedisModule);
+
+  // ----- Health (siempre habilitada — liveness/readiness para orquestación) -----
+  modules.push(HealthModule);
 
   // ----- Tools (siempre habilitadas) -----
   modules.push(ToolsModule);

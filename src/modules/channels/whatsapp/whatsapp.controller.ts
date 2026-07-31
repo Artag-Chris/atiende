@@ -9,6 +9,7 @@ import {
   Logger,
   UnauthorizedException,
   BadRequestException,
+  ServiceUnavailableException,
   Inject,
 } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
@@ -18,7 +19,13 @@ import type { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { WhatsAppAdapter } from './whatsapp.adapter';
 import { QUEUE_NAMES, type InboundMessageJobData } from '@config/queue.config';
-import { REDIS_CLIENT_TOKEN } from '@core/tokens';
+import {
+  BUSINESS_REPOSITORY_TOKEN,
+  INBOUND_MESSAGE_REPOSITORY_TOKEN,
+  REDIS_CLIENT_TOKEN,
+} from '@core/tokens';
+import type { BusinessRepositoryPort } from '@core/ports/business-repository.port';
+import type { InboundMessageRepositoryPort } from '@core/ports/inbound-message-repository.port';
 
 @Controller('webhook/whatsapp')
 export class WhatsAppController {
@@ -32,6 +39,9 @@ export class WhatsAppController {
     @InjectQueue(QUEUE_NAMES.INBOUND_MESSAGE)
     private readonly inboundQueue: Queue<InboundMessageJobData>,
     @Inject(REDIS_CLIENT_TOKEN) private readonly redis: Redis,
+    @Inject(BUSINESS_REPOSITORY_TOKEN) private readonly businessRepo: BusinessRepositoryPort,
+    @Inject(INBOUND_MESSAGE_REPOSITORY_TOKEN)
+    private readonly inboundRepo: InboundMessageRepositoryPort,
   ) {
     this.verifyToken = configService.getOrThrow<string>('META_WEBHOOK_VERIFY_TOKEN');
     this.isProduction = configService.get('NODE_ENV') === 'production';
@@ -86,34 +96,78 @@ export class WhatsAppController {
     const messages = this.whatsapp.parseInboundWebhook(parsed);
     this.logger.log(`Parsed ${messages.length} message(s) from webhook`);
 
-    const firstText = messages.find((m) => m.type === 'text' && m.text);
-    if (!firstText || !firstText.text) {
+    const textMessages = messages.filter((m) => m.type === 'text');
+    if (textMessages.length === 0) {
       this.logger.debug('No text messages to process');
       return { status: 'ok' };
     }
 
-    const dedupKey = `idempotency:${firstText.externalAccountId}:${firstText.externalMessageId}`;
-    const firstSeen = await this.redis.set(dedupKey, '1', 'EX', 86_400, 'NX');
-    if (!firstSeen) {
-      this.logger.debug(`Duplicate webhook message ${firstText.externalMessageId}, skipping`);
-      return { status: 'ok', dedup: true };
+    let persistedCount = 0;
+    let enqueuedCount = 0;
+
+    for (const m of textMessages) {
+      const text = m.text;
+      if (!text) continue;
+
+      // NFR-8 zero-loss: persiste el mensaje ANTES de encolar. Si el enqueue
+      // falla (Redis/BullMQ caídos), Meta reintenta el webhook y el dedup por
+      // constraint único en DB evita duplicados — nada se pierde.
+      let inboundId: string | undefined;
+      const business = await this.businessRepo.findByPhoneId(m.externalAccountId);
+      if (business) {
+        try {
+          const saved = await this.inboundRepo.save({
+            businessId: business.id,
+            rawPayload: m.rawPayload as Record<string, unknown>,
+            externalMessageId: m.externalMessageId,
+          });
+          inboundId = saved.id;
+          persistedCount += 1;
+        } catch (error) {
+          this.logger.error(`Failed to persist inbound message ${m.externalMessageId}: ${error}`);
+          throw new ServiceUnavailableException('Could not persist inbound message');
+        }
+      } else {
+        this.logger.warn(
+          `No business found for phone_id=${m.externalAccountId}, skipping persistence`,
+        );
+      }
+
+      // Dedup rápido en Redis (best-effort). Si Redis falla, la constraint
+      // única (businessId, externalMessageId) en DB + el dedup del use case
+      // siguen protegiendo contra doble procesamiento.
+      let isDuplicate = false;
+      const dedupKey = `idempotency:${m.externalAccountId}:${m.externalMessageId}`;
+      try {
+        const firstSeen = await this.redis.set(dedupKey, '1', 'EX', 86_400, 'NX');
+        isDuplicate = !firstSeen;
+      } catch (error) {
+        this.logger.warn(`Redis dedup unavailable, relying on DB constraint: ${error}`);
+      }
+      if (isDuplicate) {
+        this.logger.debug(`Duplicate webhook message ${m.externalMessageId}, skipping`);
+        continue;
+      }
+
+      const jobId = `${m.externalAccountId}-${m.externalMessageId}`;
+      await this.inboundQueue.add(
+        'process',
+        {
+          inboundMessageId: inboundId ?? m.externalMessageId,
+          businessId: m.externalAccountId,
+          customerPhone: m.from,
+          text,
+          externalMessageId: m.externalMessageId,
+          rawPayload: m.rawPayload as Record<string, unknown>,
+        },
+        { jobId },
+      );
+      enqueuedCount += 1;
     }
 
-    const jobId = `${firstText.externalAccountId}-${firstText.externalMessageId}`;
-    await this.inboundQueue.add(
-      'process',
-      {
-        inboundMessageId: firstText.externalMessageId,
-        businessId: firstText.externalAccountId,
-        customerPhone: firstText.from,
-        text: firstText.text,
-        externalMessageId: firstText.externalMessageId,
-        rawPayload: firstText.rawPayload as Record<string, unknown>,
-      },
-      { jobId },
+    this.logger.log(
+      `Webhook processed ${textMessages.length} message(s): persisted=${persistedCount} enqueued=${enqueuedCount}`,
     );
-
-    this.logger.log(`Enqueued inbound message for ${firstText.from}`);
     return { status: 'ok' };
   }
 }

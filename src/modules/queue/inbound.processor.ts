@@ -37,6 +37,10 @@ export class InboundProcessor extends WorkerHost {
           text: result.responseText,
         });
         this.logger.log(`Response sent to ${job.data.customerPhone}`);
+
+        if (result.inboundMessageId) {
+          await this.processInbound.markProcessed(result.inboundMessageId);
+        }
       }
 
       this.logger.log(`Inbound message job ${job.id} completed: responded=${result.responded}`);

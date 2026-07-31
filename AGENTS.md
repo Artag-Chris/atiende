@@ -14,12 +14,14 @@
 The project is **active development** with all core adapters implemented:
 
 - **Auth**: JWT login with refresh token rotation, role-based guards (RolesGuard), Zod validation, rate limiting, audit trail (LoginAttempt).
-- **Dashboard**: Next.js app at `dashboard/` (sibling directory) with auth integration, escalations list (polling), conversation detail view.
-- **WhatsApp channel**: Webhook receiver with HMAC signature verification (skipped in dev mode), idempotency via `externalMessageId`, BullMQ queue.
+- **Observability**: Global exception filter (consistent error envelope, no stack leaks) + JSON logging via `LOG_FORMAT=json` (JsonLogger). LLM calls have AbortController timeouts in AgentService.
+- **Dashboard**: Next.js app at `dashboard/` (sibling directory) with auth integration, escalations list (polling), conversation detail view. All endpoints enforce `businessId` tenant scoping from JWT (SUPER_ADMIN can override).
+- **WhatsApp channel**: Webhook receiver with HMAC signature verification (skipped in dev mode), BullMQ queue. Each text message in a payload is processed (NFR-8: no truncation to first). The InboundMessage row is persisted **before** enqueueing (zero-loss); Redis SET-NX dedup is best-effort (if Redis is down, the DB unique constraint `(businessId, externalMessageId)` + use-case dedup protect). The initial pipeline persistence (conversation getOrCreate + dedup + inbound + USER message) runs inside a single `$transaction` via `UNIT_OF_WORK_TOKEN` (PostgresUnitOfWork); the USER save is idempotent via `Message.inboundMessageId` (unique). Dedup only skips messages already marked `processedAt`; `processedAt` is set only after a successful Meta send (in `InboundProcessor`), so failed jobs are retried and re-sent instead of silently dropped.
 - **LLM providers**: Claude (primary), OpenAI (fallback + embeddings), Gemini, Groq — all with circuit breaker and retry logic.
 - **Caching**: Exact cache (Redis sha256) and semantic cache (pgvector cosine similarity) with in-memory fallback when Redis unavailable.
-- **Tests**: 96 unit tests across 13 test files passing (auth, agent, cache, tools, webhook, response policy).
-- **Prisma**: Full schema with all models, seed script for admin users. Uses `db push` (shadow DB has encoding issues).
+- **Health**: `GET /health` (DB check) used by the Dockerfile HEALTHCHECK (respects `PORT`).
+- **Tests**: 149 unit tests across 20 test files passing (auth, agent, cache, tools, webhook, response policy, inbound use case + processor, unit-of-work, postgres module DI wiring, dashboard/knowledge controllers).
+- **Prisma**: Full schema with all models, seed script for admin users. Uses `db push` (shadow DB has encoding issues). The `Message.inboundMessageId` column is new — apply `npx prisma db push` when the DB is up.
 
 ## Commands
 

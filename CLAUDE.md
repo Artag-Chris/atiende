@@ -217,10 +217,11 @@ Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `build`, `ci`
 **Lo que YA está:**
 - Auth completa (JWT, refresh token rotation, roles, rate limiting, audit trail).
 - Dashboard en Next.js (login, escalations, conversaciones, polling).
-- Canal WhatsApp (webhook con verificación HMAC, idempotencia, BullMQ).
+- Canal WhatsApp (webhook con verificación HMAC, BullMQ). Cada mensaje de texto del payload se procesa (NFR-8: sin truncar al primero); el InboundMessage se persiste ANTES de encolar (zero-loss); el dedup de Redis es best-effort (si cae, protege la constraint única de DB + el dedup del use case). La persistencia inicial del pipeline (conversation + inbound + USER message) es atómica vía `UNIT_OF_WORK_TOKEN` (PostgresUnitOfWork, `$transaction`), con USER save idempotente por `Message.inboundMessageId` (único). El dedup solo ignora mensajes YA procesados (`processedAt`); `processedAt` se marca DESPUÉS del envío exitoso a Meta, así un job fallido se reintenta y re-envía en vez de perder el mensaje.
 - Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq — todos con circuit breaker.
 - Caching multinivel: exacto (Redis) + semántico (pgvector) con fallback in-memory.
-- 96 tests unitarios pasando en 13 archivos.
+- Endpoint `/health` (liveness/readiness con check de DB) usado por el HEALTHCHECK del Dockerfile.
+- 149 tests unitarios pasando en 20 archivos.
 - Seed script para usuarios admin.
 
 **Lo que NO está aún:**

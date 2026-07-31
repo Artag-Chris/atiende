@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from './prisma.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { PrismaDbClient, PrismaService } from './prisma.service';
 import type { InboundMessage } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client';
 export class InboundMessageRepository {
   private readonly logger = new Logger(InboundMessageRepository.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaDbClient) {}
 
   async save(data: {
     businessId: string;
@@ -44,10 +44,12 @@ export class InboundMessageRepository {
     });
   }
 
-  async existsByExternalId(businessId: string, externalMessageId: string): Promise<boolean> {
-    const count = await this.prisma.inboundMessage.count({
+  async findByExternalId(
+    businessId: string,
+    externalMessageId: string,
+  ): Promise<InboundMessage | null> {
+    return this.prisma.inboundMessage.findFirst({
       where: { businessId, externalMessageId },
     });
-    return count > 0;
   }
 }

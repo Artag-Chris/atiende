@@ -2,9 +2,11 @@ import { Injectable, Logger, Inject, Optional } from '@nestjs/common';
 import { AgentService } from '@core/services/agent.service';
 import type { AgentRunRepositoryPort } from '@core/ports/agent-run-repository.port';
 import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
+import type { ConversationData } from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
 import type { InboundMessageRepositoryPort } from '@core/ports/inbound-message-repository.port';
 import type { BusinessRepositoryPort } from '@core/ports/business-repository.port';
+import type { UnitOfWorkPort } from '@core/ports/unit-of-work.port';
 import type { ChatMessage, TurnContext } from '@core/domain/types';
 import type { ResponsePolicyPort } from '@core/ports/response-policy.port';
 import type { ResponseCachePort } from '@core/ports/response-cache.port';
@@ -17,6 +19,7 @@ import {
   RESPONSE_POLICY_TOKEN,
   EXACT_CACHE_TOKEN,
   SEMANTIC_CACHE_TOKEN,
+  UNIT_OF_WORK_TOKEN,
 } from '@core/tokens';
 
 const DEFAULT_SYSTEM_PROMPT = `Eres un asistente conversacional de IA. Atiendes clientes por WhatsApp con calidez y eficiencia.
@@ -47,6 +50,7 @@ export interface ProcessResult {
   responded: boolean;
   responseText?: string;
   error?: string;
+  inboundMessageId?: string | null;
 }
 
 @Injectable()
@@ -62,6 +66,7 @@ export class ProcessInboundMessageUseCase {
     @Inject(MESSAGE_REPOSITORY_TOKEN) private readonly messageRepo: MessageRepositoryPort,
     @Inject(INBOUND_MESSAGE_REPOSITORY_TOKEN)
     private readonly inboundMessageRepo: InboundMessageRepositoryPort,
+    @Inject(UNIT_OF_WORK_TOKEN) private readonly unitOfWork: UnitOfWorkPort,
     @Optional() @Inject(RESPONSE_POLICY_TOKEN) private readonly responsePolicy?: ResponsePolicyPort,
     @Optional() @Inject(EXACT_CACHE_TOKEN) private readonly exactCache?: ResponseCachePort,
     @Optional() @Inject(SEMANTIC_CACHE_TOKEN) private readonly semanticCache?: ResponseCachePort,
@@ -89,49 +94,90 @@ export class ProcessInboundMessageUseCase {
           business.name ?? undefined,
         );
         if (!scope.allowed) {
+          // El webhook ya persistió el inbound (persist-before-enqueue). Lo
+          // devolvemos para que el processor envíe la respuesta y luego lo
+          // marque processed (at-least-once). Si no existe (job inyectado
+          // directamente), lo guardamos para no dejar huecos de trazabilidad.
+          let blockedInboundId: string | null = null;
+          try {
+            let existing = await this.inboundMessageRepo.findByExternalId(
+              business.id,
+              message.externalMessageId,
+            );
+            if (!existing) {
+              existing = await this.inboundMessageRepo.save({
+                businessId: business.id,
+                rawPayload: message.rawPayload,
+                externalMessageId: message.externalMessageId,
+              });
+            }
+            blockedInboundId = existing.id;
+          } catch (error) {
+            this.logger.warn(`Failed to persist inbound for blocked message: ${error}`);
+          }
           this.logger.log(`Out-of-scope message blocked: "${message.text.slice(0, 60)}..."`);
-          return { responded: true, responseText: scope.rejectionMessage };
+          return {
+            responded: true,
+            responseText: scope.rejectionMessage,
+            inboundMessageId: blockedInboundId,
+          };
         }
       } catch (error) {
         this.logger.warn(`Scope check failed (allowing message through): ${error}`);
       }
     }
 
-    const conversation = business
-      ? await this.conversationRepo.getOrCreate(business.id, 'WHATSAPP', message.from)
-      : null;
-
+    let conversation: ConversationData | null = null;
     let inboundMsgId: string | null = null;
 
-    if (business && conversation) {
-      const alreadyExists = await this.inboundMessageRepo.existsByExternalId(
-        business.id,
-        message.externalMessageId,
-      );
-      if (alreadyExists) {
-        this.logger.debug(`Duplicate inbound message ${message.externalMessageId}, skipping`);
-        return { responded: false };
-      }
+    if (business) {
+      // Esqueleto atómico del pipeline: conversation + dedup + inbound + USER
+      // message en un solo commit. Un crash a mitad NO deja estado parcial.
+      const result = await this.unitOfWork.withTransaction(async (ctx) => {
+        const convo = await ctx.conversationRepo.getOrCreate(business.id, 'WHATSAPP', message.from);
 
-      const saved = await this.inboundMessageRepo.save({
-        businessId: business.id,
-        rawPayload: message.rawPayload,
-        externalMessageId: message.externalMessageId,
+        const existing = await ctx.inboundMessageRepo.findByExternalId(
+          business.id,
+          message.externalMessageId,
+        );
+        if (existing?.processedAt) {
+          this.logger.debug(
+            `Inbound message ${message.externalMessageId} already processed, skipping`,
+          );
+          return { alreadyProcessed: true, convo, inboundMsgId: existing.id };
+        }
+
+        // El webhook ya pudo persistir el inbound (persist-before-enqueue).
+        let inboundId: string;
+        if (existing) {
+          inboundId = existing.id;
+        } else {
+          const saved = await ctx.inboundMessageRepo.save({
+            businessId: business.id,
+            rawPayload: message.rawPayload,
+            externalMessageId: message.externalMessageId,
+          });
+          inboundId = saved.id;
+        }
+
+        await ctx.messageRepo.save({
+          conversationId: convo.id,
+          role: 'USER',
+          content: [{ type: 'text', text: message.text }],
+          inboundMessageId: inboundId,
+        });
+
+        return { alreadyProcessed: false, convo, inboundMsgId: inboundId };
       });
-      inboundMsgId = saved.id;
+
+      if (result.alreadyProcessed) return { responded: false };
+      conversation = result.convo;
+      inboundMsgId = result.inboundMsgId;
     }
 
     const conversationHistory = conversation
       ? await this.loadConversationHistory(conversation.id)
       : undefined;
-
-    if (business && conversation) {
-      await this.messageRepo.save({
-        conversationId: conversation.id,
-        role: 'USER',
-        content: [{ type: 'text', text: message.text }],
-      });
-    }
 
     const systemPrompt = this.buildSystemPrompt(
       business?.systemPromptExtras,
@@ -174,14 +220,12 @@ export class ProcessInboundMessageUseCase {
             }
           }
           if (inboundMsgId) {
-            await this.inboundMessageRepo
-              .markProcessed(inboundMsgId)
-              .catch((err: unknown) =>
-                this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
-              );
+            this.logger.debug(
+              `Cached response for inbound message ${inboundMsgId} (marked processed after send)`,
+            );
           }
           this.logger.log(`${cache.name} cache HIT for business=${business.id}`);
-          return { responded: true, responseText: cachedText };
+          return { responded: true, responseText: cachedText, inboundMessageId: inboundMsgId };
         }
       }
     }
@@ -268,18 +312,24 @@ export class ProcessInboundMessageUseCase {
     }
 
     if (inboundMsgId) {
-      await this.inboundMessageRepo
-        .markProcessed(inboundMsgId)
-        .catch((err: unknown) =>
-          this.logger.warn(`Failed to mark inbound message as processed: ${err}`),
-        );
+      this.logger.debug(
+        `Inbound message ${inboundMsgId} will be marked processed after the send succeeds`,
+      );
     }
 
     this.logger.log(
       `Agent responded: "${finalText.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
     );
 
-    return { responded: true, responseText: finalText };
+    return { responded: true, responseText: finalText, inboundMessageId: inboundMsgId };
+  }
+
+  async markProcessed(inboundMessageId: string): Promise<void> {
+    try {
+      await this.inboundMessageRepo.markProcessed(inboundMessageId);
+    } catch (error: unknown) {
+      this.logger.warn(`Failed to mark inbound message as processed: ${error}`);
+    }
   }
 
   private buildSystemPrompt(existingExtras?: string | null, businessName?: string): string {

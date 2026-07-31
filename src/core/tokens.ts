@@ -43,6 +43,7 @@ export const BUSINESS_REPOSITORY_TOKEN = Symbol('BUSINESS_REPOSITORY');
 export const CONVERSATION_REPOSITORY_TOKEN = Symbol('CONVERSATION_REPOSITORY');
 export const MESSAGE_REPOSITORY_TOKEN = Symbol('MESSAGE_REPOSITORY');
 export const INBOUND_MESSAGE_REPOSITORY_TOKEN = Symbol('INBOUND_MESSAGE_REPOSITORY');
+export const UNIT_OF_WORK_TOKEN = Symbol('UNIT_OF_WORK');
 
 // ----- Infrastructure -------------------------------------------------------
 export const REDIS_CLIENT_TOKEN = Symbol('REDIS_CLIENT');

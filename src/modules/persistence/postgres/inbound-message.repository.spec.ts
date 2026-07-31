@@ -8,7 +8,6 @@ type MockPrisma = {
     create: ReturnType<typeof vi.fn>;
     findFirst: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
-    count: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -18,7 +17,6 @@ function createMockPrisma(): MockPrisma {
       create: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
-      count: vi.fn(),
     },
   };
 }
@@ -119,21 +117,24 @@ describe('InboundMessageRepository', () => {
     });
   });
 
-  describe('existsByExternalId', () => {
-    it('returns true when count > 0', async () => {
-      prisma.inboundMessage.count.mockResolvedValue(1);
+  describe('findByExternalId', () => {
+    it('returns the record when it exists', async () => {
+      prisma.inboundMessage.findFirst.mockResolvedValue(mockCreated);
 
-      const result = await repo.existsByExternalId('biz-1', 'ext-1');
+      const result = await repo.findByExternalId('biz-1', 'ext-1');
 
-      expect(result).toBe(true);
+      expect(result).toEqual(mockCreated);
+      expect(prisma.inboundMessage.findFirst).toHaveBeenCalledWith({
+        where: { businessId: 'biz-1', externalMessageId: 'ext-1' },
+      });
     });
 
-    it('returns false when count is 0', async () => {
-      prisma.inboundMessage.count.mockResolvedValue(0);
+    it('returns null when no record exists', async () => {
+      prisma.inboundMessage.findFirst.mockResolvedValue(null);
 
-      const result = await repo.existsByExternalId('biz-1', 'ext-1');
+      const result = await repo.findByExternalId('biz-1', 'ext-1');
 
-      expect(result).toBe(false);
+      expect(result).toBeNull();
     });
   });
 });

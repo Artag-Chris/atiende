@@ -13,6 +13,8 @@ export interface MessageRepositoryPort {
     role: string;
     content: unknown;
     tokenUsage?: unknown;
+    /** InboundMessage origen (USER entrante) — hace el save idempotente. */
+    inboundMessageId?: string;
   }): Promise<MessageData>;
   findRecent(conversationId: string, limit?: number): Promise<MessageData[]>;
 }
