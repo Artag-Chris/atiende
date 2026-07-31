@@ -40,10 +40,12 @@ export class MessageRepository {
   }
 
   async findRecent(conversationId: string, limit: number = 20): Promise<Message[]> {
-    return this.prisma.message.findMany({
+    const rows = await this.prisma.message.findMany({
       where: { conversationId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
       take: limit,
     });
+    // Desc → asc para devolver el historial en orden cronológico.
+    return rows.reverse();
   }
 }

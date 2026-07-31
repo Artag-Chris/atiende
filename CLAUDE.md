@@ -221,7 +221,7 @@ Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `build`, `ci`
 - Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq — todos con circuit breaker. **Groq opera en modo prompt-completion (sin parámetro `tools`)**: llama-3.3-70b-versatile emite `<function.NAME{json}></function>` en texto y la validación server-side de Groq lo rechaza (400 "tool call validation failed", rompió `escalate_to_human` en prod). El adapter describe el formato en el system prompt y parsea la salida con `src/modules/llm/raw-function-calls.ts` (también aplicado a OpenAI como defensa en profundidad), para que la sintaxis de tool-call jamás llegue al cliente.
 - Caching multinivel: exacto (Redis) + semántico (pgvector) con fallback in-memory.
 - Endpoint `/health` (liveness/readiness con check de DB) usado por el HEALTHCHECK del Dockerfile.
-- 182 tests unitarios pasando en 24 archivos.
+- 186 tests unitarios pasando en 25 archivos.
 - Seed script para usuarios admin.
 
 **Lo que NO está aún:**

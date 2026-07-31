@@ -20,7 +20,7 @@ The project is **active development** with all core adapters implemented:
 - **LLM providers**: Claude (primary), OpenAI (fallback + embeddings), Gemini, Groq — all with circuit breaker and retry logic. Groq runs in **prompt-completion mode** (no `tools` param): llama-3.3-70b-versatile emits `<function.NAME{json}></function>` in text and Groq's server-side tool validation rejects/mangles it (400 "tool call validation failed" broke `escalate_to_human` in prod). The adapter describes the format in the system prompt and parses the output via `src/modules/llm/raw-function-calls.ts` (also applied to OpenAI as defense-in-depth), so tool-call syntax never leaks to the customer.
 - **Caching**: Exact cache (Redis sha256) and semantic cache (pgvector cosine similarity) with in-memory fallback when Redis unavailable.
 - **Health**: `GET /health` (DB check) used by the Dockerfile HEALTHCHECK (respects `PORT`).
-- **Tests**: 182 unit tests across 24 test files passing (auth, agent, cache, tools, webhook, response policy, inbound use case + processor, escalation expiry, maintenance, unit-of-work, postgres module DI wiring, dashboard/knowledge controllers, raw function-call parsing, groq adapter manifest).
+- **Tests**: 186 unit tests across 25 test files passing (auth, agent, cache, tools, webhook, response policy, inbound use case + processor, escalation expiry, maintenance, unit-of-work, postgres module DI wiring + message/inbound repositories, dashboard/knowledge controllers, raw function-call parsing, groq adapter manifest).
 - **Prisma**: Full schema with all models, seed script for admin users. Uses `db push` (shadow DB has encoding issues). The `Message.inboundMessageId` column is new — apply `npx prisma db push` when the DB is up.
 
 ## Commands
