@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaDbClient, PrismaService } from './prisma.service';
 import type { Message, MessageRole } from '@prisma/client';
+import type { InboundActivityItem } from '@core/ports/message-repository.port';
 import type { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -15,7 +16,7 @@ export class MessageRepository {
     content: Record<string, unknown> | Array<Record<string, unknown>>;
     tokenUsage?: Record<string, unknown>;
     inboundMessageId?: string;
-  }): Promise<Message> {
+  }): Promise<Message & { created: boolean }> {
     const createData: Prisma.MessageCreateInput = {
       conversation: { connect: { id: data.conversationId } },
       role: data.role,
@@ -27,16 +28,54 @@ export class MessageRepository {
     };
 
     if (!data.inboundMessageId) {
-      return this.prisma.message.create({ data: createData });
+      const created = await this.prisma.message.create({ data: createData });
+      return { ...created, created: true };
     }
 
-    // Idempotente: si el USER message ya se guardó en un intento anterior del
-    // mismo mensaje (job reintentado), no lo duplicamos.
-    return this.prisma.message.upsert({
-      where: { inboundMessageId: data.inboundMessageId },
-      create: createData,
-      update: {},
+    try {
+      const created = await this.prisma.message.create({ data: createData });
+      return { ...created, created: true };
+    } catch (error) {
+      // Idempotente: si el USER message ya se guardó en un intento anterior del
+      // mismo mensaje (job reintentado), no lo duplicamos ni re-contamos.
+      const existing = await this.prisma.message.findUnique({
+        where: { inboundMessageId: data.inboundMessageId },
+      });
+      if (!existing) throw error;
+      return { ...existing, created: false };
+    }
+  }
+
+  async findInboundActivity(
+    businessId: string | undefined,
+    since: Date,
+    limit: number = 50,
+  ): Promise<InboundActivityItem[]> {
+    const rows = await this.prisma.message.findMany({
+      where: {
+        role: 'USER',
+        createdAt: { gt: since },
+        ...(businessId ? { conversation: { businessId } } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+      select: {
+        id: true,
+        conversationId: true,
+        createdAt: true,
+        content: true,
+        conversation: { select: { customerIdentifier: true, customerName: true } },
+      },
     });
+
+    return rows.map((row) => ({
+      id: row.id,
+      conversationId: row.conversationId,
+      createdAt: row.createdAt,
+      content: row.content,
+      customerIdentifier: row.conversation.customerIdentifier,
+      customerName: row.conversation.customerName,
+    }));
   }
 
   async findRecent(conversationId: string, limit: number = 20): Promise<Message[]> {

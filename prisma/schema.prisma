@@ -172,7 +172,11 @@ model Conversation {
   channel            Channel            @default(WHATSAPP)
   /// Identificador del cliente en ese canal (teléfono en WhatsApp, sessionId en webchat, etc.).
   customerIdentifier String             @map("customer_identifier")
+  /// Nombre del cliente según el canal (profile.name de WhatsApp). Opcional.
+  customerName       String?            @map("customer_name")
   status             ConversationStatus @default(ACTIVE)
+  /// Mensajes entrantes del cliente sin leer por un humano del dashboard.
+  unreadCount        Int                @default(0) @map("unread_count")
   /// Resumen generado por compaction cuando el historial crece.
   summaryText        String?            @map("summary_text")
   lastMessageAt      DateTime?          @map("last_message_at")

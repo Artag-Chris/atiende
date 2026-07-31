@@ -159,6 +159,7 @@ export class WhatsAppController {
           text,
           externalMessageId: m.externalMessageId,
           rawPayload: m.rawPayload as Record<string, unknown>,
+          customerName: m.customerName,
         },
         { jobId },
       );

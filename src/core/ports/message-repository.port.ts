@@ -7,6 +7,15 @@ export interface MessageData {
   createdAt: Date;
 }
 
+export interface InboundActivityItem {
+  id: string;
+  conversationId: string;
+  customerIdentifier: string;
+  customerName: string | null;
+  createdAt: Date;
+  content: unknown;
+}
+
 export interface MessageRepositoryPort {
   save(data: {
     conversationId: string;
@@ -15,6 +24,12 @@ export interface MessageRepositoryPort {
     tokenUsage?: unknown;
     /** InboundMessage origen (USER entrante) — hace el save idempotente. */
     inboundMessageId?: string;
-  }): Promise<MessageData>;
+  }): Promise<MessageData & { created: boolean }>;
   findRecent(conversationId: string, limit?: number): Promise<MessageData[]>;
+  /** Mensajes USER entrantes recientes (notificaciones de escritura del dashboard). */
+  findInboundActivity(
+    businessId: string | undefined,
+    since: Date,
+    limit: number,
+  ): Promise<InboundActivityItem[]>;
 }

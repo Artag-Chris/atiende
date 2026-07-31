@@ -5,7 +5,7 @@ import type { PrismaService } from './prisma.service';
 type MockPrisma = {
   message: {
     create: ReturnType<typeof vi.fn>;
-    upsert: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     findMany: ReturnType<typeof vi.fn>;
   };
 };
@@ -14,7 +14,7 @@ function createMockPrisma(): MockPrisma {
   return {
     message: {
       create: vi.fn(),
-      upsert: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
     },
   };
@@ -49,7 +49,7 @@ describe('MessageRepository', () => {
         content: [{ type: 'text', text: 'te ayudo' }],
       });
 
-      expect(result).toEqual(mockMessage);
+      expect(result).toEqual({ ...mockMessage, created: true });
       expect(prisma.message.create).toHaveBeenCalledWith({
         data: {
           conversation: { connect: { id: 'conv-1' } },
@@ -60,8 +60,8 @@ describe('MessageRepository', () => {
       });
     });
 
-    it('upserts by inboundMessageId to stay idempotent', async () => {
-      prisma.message.upsert.mockResolvedValue(mockMessage);
+    it('returns created=true on first save of an inbound-linked message', async () => {
+      prisma.message.create.mockResolvedValue(mockMessage);
 
       const result = await repo.save({
         conversationId: 'conv-1',
@@ -70,18 +70,52 @@ describe('MessageRepository', () => {
         inboundMessageId: 'inbound-1',
       });
 
-      expect(result).toEqual(mockMessage);
-      expect(prisma.message.upsert).toHaveBeenCalledWith({
-        where: { inboundMessageId: 'inbound-1' },
-        create: {
+      expect(result).toEqual({ ...mockMessage, created: true });
+      expect(prisma.message.create).toHaveBeenCalledWith({
+        data: {
           conversation: { connect: { id: 'conv-1' } },
           role: 'USER',
           content: [{ type: 'text', text: 'hola' }],
           tokenUsage: undefined,
           inboundMessage: { connect: { id: 'inbound-1' } },
         },
-        update: {},
       });
+      expect(prisma.message.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('returns created=false on a duplicate (job retry) without duplicating', async () => {
+      const conflict = new Error('Unique constraint failed');
+      Object.assign(conflict, { code: 'P2002' });
+      prisma.message.create.mockRejectedValue(conflict);
+      prisma.message.findUnique.mockResolvedValue(mockMessage);
+
+      const result = await repo.save({
+        conversationId: 'conv-1',
+        role: 'USER',
+        content: [{ type: 'text', text: 'hola' }],
+        inboundMessageId: 'inbound-1',
+      });
+
+      expect(result).toEqual({ ...mockMessage, created: false });
+      expect(prisma.message.findUnique).toHaveBeenCalledWith({
+        where: { inboundMessageId: 'inbound-1' },
+      });
+    });
+
+    it('rethrows when the duplicate lookup finds nothing', async () => {
+      const conflict = new Error('Unique constraint failed');
+      Object.assign(conflict, { code: 'P2002' });
+      prisma.message.create.mockRejectedValue(conflict);
+      prisma.message.findUnique.mockResolvedValue(null);
+
+      await expect(
+        repo.save({
+          conversationId: 'conv-1',
+          role: 'USER',
+          content: [{ type: 'text', text: 'hola' }],
+          inboundMessageId: 'inbound-1',
+        }),
+      ).rejects.toThrow('Unique constraint failed');
     });
   });
 
@@ -107,6 +141,63 @@ describe('MessageRepository', () => {
       const result = await repo.findRecent('conv-1', 3);
 
       expect(result.map((m) => m.id)).toEqual(['old', 'mid', 'recent']);
+    });
+  });
+
+  describe('findInboundActivity', () => {
+    it('scopes to business and returns flattened activity rows', async () => {
+      prisma.message.findMany.mockResolvedValue([
+        {
+          id: 'm1',
+          conversationId: 'conv-1',
+          createdAt: new Date('2026-07-31T10:00:00Z'),
+          content: [{ type: 'text', text: 'hola' }],
+          conversation: { customerIdentifier: '573001234567', customerName: 'Ana' },
+        },
+      ]);
+
+      const since = new Date('2026-07-31T09:59:00Z');
+      const result = await repo.findInboundActivity('biz-1', since, 20);
+
+      expect(prisma.message.findMany).toHaveBeenCalledWith({
+        where: {
+          role: 'USER',
+          createdAt: { gt: since },
+          conversation: { businessId: 'biz-1' },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 20,
+        select: {
+          id: true,
+          conversationId: true,
+          createdAt: true,
+          content: true,
+          conversation: { select: { customerIdentifier: true, customerName: true } },
+        },
+      });
+      expect(result).toEqual([
+        {
+          id: 'm1',
+          conversationId: 'conv-1',
+          createdAt: new Date('2026-07-31T10:00:00Z'),
+          content: [{ type: 'text', text: 'hola' }],
+          customerIdentifier: '573001234567',
+          customerName: 'Ana',
+        },
+      ]);
+    });
+
+    it('skips the business filter when businessId is undefined', async () => {
+      prisma.message.findMany.mockResolvedValue([]);
+
+      const since = new Date('2026-07-31T10:00:00Z');
+      await repo.findInboundActivity(undefined, since, 20);
+
+      expect(prisma.message.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { role: 'USER', createdAt: { gt: since } },
+        }),
+      );
     });
   });
 });

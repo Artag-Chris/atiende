@@ -72,6 +72,11 @@ export class WhatsAppAdapter implements ChannelProviderPort {
         const value = change.value;
         if (!value.messages || !value.metadata) continue;
 
+        const contactsByName = new Map<string, string>();
+        for (const contact of value.contacts ?? []) {
+          if (contact.profile?.name) contactsByName.set(contact.wa_id, contact.profile.name);
+        }
+
         for (const msg of value.messages) {
           messages.push({
             externalAccountId: value.metadata.phone_number_id,
@@ -79,6 +84,7 @@ export class WhatsAppAdapter implements ChannelProviderPort {
             externalMessageId: msg.id,
             type: msg.type === 'text' ? 'text' : 'unsupported',
             text: msg.text?.body,
+            customerName: contactsByName.get(msg.from),
             timestamp: new Date(Number(msg.timestamp) * 1000),
             rawPayload: msg,
           });

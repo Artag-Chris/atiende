@@ -1,6 +1,6 @@
 # MEMORY — Estado del Proyecto Atiende
 
-> Archivo de memoria para sesiones de desarrollo. Actualizado: 2026-07-27.
+> Archivo de memoria para sesiones de desarrollo. Actualizado: 2026-07-31.
 
 ---
 
@@ -61,6 +61,17 @@
 - [ ] Knowledge ingestion
 - [ ] Semantic cache
 - [ ] Evals
+
+## Pendientes registrados (2026-07-31) — Dashboard / human takeover
+
+Ambos temas pedidos explícitamente ya están **implementados en código** (faltan migración de schema y deploy):
+
+- [x] **Mostrar nombre de la persona en el front** — `whatsapp.adapter.ts` extrae `contacts[].profile.name` por mensaje (`customerName` en `ParsedInboundMessage`), se persiste en `Conversation.customerName` y se muestra en el chat, en `/pendientes` y en escalaciones. Si no hay nombre, se usa `customerIdentifier`.
+- [x] **Notificación "X persona escribió" + lista de pendientes** — semántica acordada (2026-07-31): `unreadCount` sube solo en el primer persist del USER (el `save` de mensajes devuelve `created`; retries de job no duplican el badge) y se resetea a 0 cuando la IA responde (inclusive cache-hit) o al llamar `POST .../read`. Un mensaje nuevo en conversación `RESOLVED` la reabre a `ACTIVE` (vuelve a pendientes y notifica). `GET /api/dashboard/pending` lista conversaciones con no-leídos; el front (`PendingMonitor`) sondea `GET /api/dashboard/inbound-activity?since=<cursor>` (primer poll = snapshot silencioso, luego notifica por item: popup "X escribió" + un ping por batch) y muestra badge en el sidebar; sonido/popup solo si el navegador tiene permiso de notificación. `/pendientes` es la landing. Abrir una conversación la marca leída (`POST .../read`); si la pestaña está visible, el poll la re-marca en cada tick.
+
+> Estado: backend + frontend verificados localmente (backend `npm run check` 212 tests/27 archivos; dashboard lint + `next build` OK) tras la auditoría pre-deploy (fix idempotencia del badge, reset al responder la IA, reapertura de `RESOLVED`, sonido solo con permiso). **Pendiente de deploy**: `npx prisma db push` (columnas `Conversation.customerName` + `Conversation.unreadCount`), rebuild del container backend y redeploy de Vercel.
+
+> Relacionado (ya desplegado): human takeover end-to-end funcional — escalaciones llegan al dashboard, la IA queda muda en `ESCALATED`, el humano responde y ve los mensajes entrantes (fix del truncamiento de `findRecent` + render optimista + auto-scroll).
 
 ---
 

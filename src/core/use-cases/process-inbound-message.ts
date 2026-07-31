@@ -44,6 +44,7 @@ export interface InboundMessage {
   text: string;
   externalMessageId: string;
   rawPayload: Record<string, unknown>;
+  customerName?: string;
 }
 
 export interface ProcessResult {
@@ -136,7 +137,18 @@ export class ProcessInboundMessageUseCase {
       // Esqueleto atómico del pipeline: conversation + dedup + inbound + USER
       // message en un solo commit. Un crash a mitad NO deja estado parcial.
       const result = await this.unitOfWork.withTransaction(async (ctx) => {
-        const convo = await ctx.conversationRepo.getOrCreate(business.id, 'WHATSAPP', message.from);
+        const convo = await ctx.conversationRepo.getOrCreate(
+          business.id,
+          'WHATSAPP',
+          message.from,
+          message.customerName,
+        );
+
+        if (convo.status === 'RESOLVED') {
+          // Un mensaje entrante tras resolver reabre la conversación para que
+          // vuelva a aparecer en pendientes del dashboard.
+          await ctx.conversationRepo.updateStatus(convo.id, 'ACTIVE');
+        }
 
         const existing = await ctx.inboundMessageRepo.findByExternalId(
           business.id,
@@ -162,12 +174,18 @@ export class ProcessInboundMessageUseCase {
           inboundId = saved.id;
         }
 
-        await ctx.messageRepo.save({
+        const savedUser = await ctx.messageRepo.save({
           conversationId: convo.id,
           role: 'USER',
           content: [{ type: 'text', text: message.text }],
           inboundMessageId: inboundId,
         });
+
+        // Solo la primera vez que se persiste este USER message (idempotente
+        // ante reintentos del job): el mensaje entrante queda sin leer.
+        if (savedUser.created) {
+          await ctx.conversationRepo.incrementUnread(convo.id);
+        }
 
         return { alreadyProcessed: false, convo, inboundMsgId: inboundId };
       });
@@ -238,6 +256,11 @@ export class ProcessInboundMessageUseCase {
             );
           }
           this.logger.log(`${cache.name} cache HIT for business=${business.id}`);
+          if (conversation) {
+            await this.conversationRepo
+              .resetUnread(conversation.id)
+              .catch((err: unknown) => this.logger.warn(`Failed to reset unread: ${err}`));
+          }
           return { responded: true, responseText: cachedText, inboundMessageId: inboundMsgId };
         }
       }
@@ -322,6 +345,12 @@ export class ProcessInboundMessageUseCase {
           toolCalls: agentResponse.toolCallsMade,
         },
       });
+
+      // La IA respondió: el chat deja de ser pendiente (requiere atención
+      // humana solo si sigue sin resolver tras la respuesta del agente).
+      await this.conversationRepo
+        .resetUnread(conversation.id)
+        .catch((err: unknown) => this.logger.warn(`Failed to reset unread: ${err}`));
     }
 
     if (inboundMsgId) {

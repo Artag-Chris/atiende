@@ -28,6 +28,7 @@ export class InboundProcessor extends WorkerHost {
         text: job.data.text,
         externalMessageId: job.data.externalMessageId,
         rawPayload: job.data.rawPayload,
+        customerName: job.data.customerName,
       });
 
       if (result.responded && result.responseText) {

@@ -28,6 +28,8 @@ export interface ParsedInboundMessage {
   /** Tipo de contenido. v1 solo soporta texto. */
   type: 'text' | 'image' | 'audio' | 'video' | 'document' | 'unsupported';
   text?: string;
+  /** Nombre del remitente según el canal (ej: profile.name de WhatsApp). Opcional. */
+  customerName?: string;
   /** Timestamp del mensaje según el canal. */
   timestamp: Date;
   /** Payload crudo para debug/replay. */

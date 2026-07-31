@@ -198,6 +198,7 @@ export interface InboundMessageJobData {
   text: string;
   externalMessageId: string;
   rawPayload: Record<string, unknown>;
+  customerName?: string;
 }
 
 export interface AgentRunJobData {

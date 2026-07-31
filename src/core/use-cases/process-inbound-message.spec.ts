@@ -62,6 +62,9 @@ function createConversationRepo() {
     findById: vi.fn().mockResolvedValue(null),
     updateStatus: vi.fn().mockResolvedValue(undefined),
     findEscalated: vi.fn().mockResolvedValue([]),
+    incrementUnread: vi.fn().mockResolvedValue(undefined),
+    resetUnread: vi.fn().mockResolvedValue(undefined),
+    findPending: vi.fn().mockResolvedValue([]),
   } as unknown as ConversationRepositoryPort;
 }
 
@@ -74,9 +77,11 @@ function createMessageRepo() {
         role: data.role,
         content: data.content,
         createdAt: new Date(),
+        created: true,
       }),
     ),
     findRecent: vi.fn().mockResolvedValue([]),
+    findInboundActivity: vi.fn().mockResolvedValue([]),
   } as unknown as MessageRepositoryPort;
 }
 
@@ -382,9 +387,58 @@ describe('ProcessInboundMessageUseCase', () => {
       'biz-1',
       'WHATSAPP',
       '573001234567',
+      undefined,
     );
     expect(ctx.inboundRepo.findByExternalId).toHaveBeenCalledWith('biz-1', 'msg-1');
     expect(ctx.inboundRepo.save).toHaveBeenCalledTimes(1);
+    expect(ctx.conversationRepo.incrementUnread).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('does not re-increment unread when the USER message already exists (job retry)', async () => {
+    ctx.messageRepo.save = vi.fn().mockResolvedValue({
+      id: 'msg-x',
+      conversationId: 'conv-1',
+      role: 'USER',
+      content: [{ type: 'text', text: 'Hola' }],
+      createdAt: new Date(),
+      created: false,
+    });
+
+    await ctx.useCase.execute(baseMessage);
+
+    expect(ctx.conversationRepo.incrementUnread).not.toHaveBeenCalled();
+  });
+
+  it('reopens a RESOLVED conversation on a new inbound message', async () => {
+    ctx.conversationRepo.getOrCreate = vi.fn().mockResolvedValue({
+      id: 'conv-1',
+      businessId: 'biz-1',
+      channel: 'WHATSAPP',
+      customerIdentifier: '573001234567',
+      status: 'RESOLVED',
+    });
+
+    await ctx.useCase.execute(baseMessage);
+
+    expect(ctx.conversationRepo.updateStatus).toHaveBeenCalledWith('conv-1', 'ACTIVE');
+  });
+
+  it('resets unread after the assistant replies', async () => {
+    await ctx.useCase.execute(baseMessage);
+
+    expect(ctx.conversationRepo.resetUnread).toHaveBeenCalledWith('conv-1');
+  });
+
+  it('resets unread on cached responses', async () => {
+    ctx.exactCache.lookup = vi.fn().mockResolvedValue({
+      responseText: 'Respuesta cacheada',
+      similarity: 1,
+      cachedAt: new Date(),
+    });
+
+    await ctx.useCase.execute(baseMessage);
+
+    expect(ctx.conversationRepo.resetUnread).toHaveBeenCalledWith('conv-1');
   });
 
   it('returns early when the business is missing (no transaction, no persistence)', async () => {

@@ -12,6 +12,7 @@ export class ConversationRepository {
     businessId: string,
     channel: Channel,
     customerIdentifier: string,
+    customerName?: string,
   ): Promise<Conversation> {
     return this.prisma.conversation.upsert({
       where: {
@@ -21,13 +22,47 @@ export class ConversationRepository {
           customerIdentifier,
         },
       },
-      update: { lastMessageAt: new Date() },
+      update: {
+        lastMessageAt: new Date(),
+        ...(customerName ? { customerName } : {}),
+      },
       create: {
         businessId,
         channel,
         customerIdentifier,
+        customerName,
         lastMessageAt: new Date(),
       },
+    });
+  }
+
+  async findPending(
+    businessId?: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<Conversation[]> {
+    return this.prisma.conversation.findMany({
+      where: {
+        ...(businessId ? { businessId } : {}),
+        unreadCount: { gt: 0 },
+        status: { notIn: ['RESOLVED', 'ABANDONED'] },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+      take: options?.limit ?? 50,
+      skip: options?.offset ?? 0,
+    });
+  }
+
+  async incrementUnread(id: string): Promise<void> {
+    await this.prisma.conversation.update({
+      where: { id },
+      data: { unreadCount: { increment: 1 } },
+    });
+  }
+
+  async resetUnread(id: string): Promise<void> {
+    await this.prisma.conversation.update({
+      where: { id },
+      data: { unreadCount: 0 },
     });
   }
 

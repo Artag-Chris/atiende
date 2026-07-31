@@ -25,6 +25,20 @@ import { WhatsAppAdapter } from '../channels/whatsapp/whatsapp.adapter';
 
 const MAX_REPLY_TEXT_LENGTH = 1000;
 
+/** Extrae el texto legible del content de un mensaje (blocks Anthropic o string). */
+function extractMessageText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((block) =>
+        block && typeof block === 'object' && block.type === 'text' ? block.text : '',
+      )
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('api/dashboard')
 export class DashboardController {
@@ -55,11 +69,80 @@ export class DashboardController {
     return { data: rows, total: rows.length };
   }
 
+  @Get('inbound-activity')
+  async listInboundActivity(
+    @Req() req: Request,
+    @Query('businessId') businessId?: string,
+    @Query('since') since?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+    const filterBusinessId = user?.role === 'SUPER_ADMIN' ? businessId : user?.businessId;
+    const sinceDate =
+      since && !Number.isNaN(Date.parse(since)) ? new Date(since) : new Date(Date.now() - 60_000);
+    const limitNum = Math.min(Math.max(Number(limit ?? 20) || 20, 1), 100);
+
+    const rows = await this.messageRepo.findInboundActivity(filterBusinessId, sinceDate, limitNum);
+
+    const data = rows.map((m) => ({
+      id: m.id,
+      conversationId: m.conversationId,
+      customerIdentifier: m.customerIdentifier,
+      customerName: m.customerName,
+      text: extractMessageText(m.content),
+      createdAt: m.createdAt.toISOString(),
+    }));
+
+    return {
+      data,
+      latest: data.length > 0 ? data[data.length - 1].createdAt : sinceDate.toISOString(),
+    };
+  }
+
+  @Get('pending')
+  async listPending(
+    @Req() req: Request,
+    @Query('businessId') businessId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+    const filterBusinessId = user?.role === 'SUPER_ADMIN' ? businessId : user?.businessId;
+    const rows = await this.conversationRepo.findPending(filterBusinessId, {
+      limit: limit ? Number(limit) : 50,
+      offset: offset ? Number(offset) : 0,
+    });
+
+    const items = await Promise.all(
+      rows.map(async (conversation) => {
+        const lastMessages = await this.messageRepo.findRecent(conversation.id, 1);
+        return {
+          id: conversation.id,
+          customerIdentifier: conversation.customerIdentifier,
+          customerName: conversation.customerName ?? null,
+          status: conversation.status,
+          unreadCount: conversation.unreadCount ?? 0,
+          lastMessageAt: conversation.lastMessageAt ?? null,
+          lastMessageText: extractMessageText(lastMessages[0]?.content),
+        };
+      }),
+    );
+
+    return { data: items, total: items.length };
+  }
+
   @Get('conversations/:id')
   async getConversation(@Param('id') id: string, @Req() req: Request) {
     const conversation = await this.assertAccessible(id, req);
     const messages = await this.messageRepo.findRecent(id, 50);
     return { conversation, messages };
+  }
+
+  @Post('conversations/:id/read')
+  async markConversationRead(@Param('id') id: string, @Req() req: Request) {
+    const conversation = await this.assertAccessible(id, req);
+    await this.conversationRepo.resetUnread(conversation.id);
+    return { ok: true };
   }
 
   /**

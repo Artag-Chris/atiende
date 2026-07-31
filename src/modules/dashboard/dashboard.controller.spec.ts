@@ -19,6 +19,9 @@ function createConversationRepo() {
     touchLastMessage: vi.fn(),
     updateStatus: vi.fn(),
     findEscalated: vi.fn().mockResolvedValue([]),
+    findPending: vi.fn().mockResolvedValue([]),
+    incrementUnread: vi.fn(),
+    resetUnread: vi.fn(),
   } as unknown as ConversationRepositoryPort;
 }
 
@@ -26,6 +29,7 @@ function createMessageRepo() {
   return {
     save: vi.fn(),
     findRecent: vi.fn().mockResolvedValue([]),
+    findInboundActivity: vi.fn().mockResolvedValue([]),
   } as unknown as MessageRepositoryPort;
 }
 
@@ -116,6 +120,141 @@ describe('DashboardController', () => {
         limit: 20,
         offset: 5,
       });
+    });
+  });
+
+  describe('listPending', () => {
+    it('scopes pending conversations to the JWT businessId and includes last message text', async () => {
+      conversationRepo.findPending = vi.fn().mockResolvedValue([
+        {
+          id: 'conv-1',
+          businessId: 'biz-1',
+          channel: 'WHATSAPP',
+          customerIdentifier: '573001234567',
+          customerName: 'Ana',
+          status: 'ACTIVE',
+          unreadCount: 3,
+          lastMessageAt: new Date('2026-01-01T00:00:00Z'),
+        },
+      ]);
+      messageRepo.findRecent = vi
+        .fn()
+        .mockResolvedValue([{ content: [{ type: 'text', text: 'hola' }] }]);
+
+      const result = await controller.listPending(makeReq({ businessId: 'biz-1', role: 'ADMIN' }));
+
+      expect(conversationRepo.findPending).toHaveBeenCalledWith(
+        'biz-1',
+        expect.objectContaining({ limit: 50, offset: 0 }),
+      );
+      expect(messageRepo.findRecent).toHaveBeenCalledWith('conv-1', 1);
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({
+          id: 'conv-1',
+          customerName: 'Ana',
+          unreadCount: 3,
+          lastMessageText: 'hola',
+        }),
+      );
+    });
+
+    it('lets SUPER_ADMIN override businessId via query param', async () => {
+      await controller.listPending(makeReq({ businessId: 'biz-1', role: 'SUPER_ADMIN' }), 'biz-2');
+
+      expect(conversationRepo.findPending).toHaveBeenCalledWith(
+        'biz-2',
+        expect.objectContaining({ limit: 50, offset: 0 }),
+      );
+    });
+  });
+
+  describe('listInboundActivity', () => {
+    it('scopes inbound activity to the JWT businessId and maps message text', async () => {
+      messageRepo.findInboundActivity = vi.fn().mockResolvedValue([
+        {
+          id: 'm1',
+          conversationId: 'conv-1',
+          customerIdentifier: '573001234567',
+          customerName: 'Ana',
+          createdAt: new Date('2026-01-01T00:00:00Z'),
+          content: [{ type: 'text', text: 'hola' }],
+        },
+      ]);
+
+      const result = await controller.listInboundActivity(
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        undefined,
+        '2026-01-01T00:00:00.000Z',
+        '20',
+      );
+
+      expect(messageRepo.findInboundActivity).toHaveBeenCalledWith(
+        'biz-1',
+        new Date('2026-01-01T00:00:00.000Z'),
+        20,
+      );
+      expect(result.data[0]).toEqual(
+        expect.objectContaining({ customerName: 'Ana', text: 'hola' }),
+      );
+      expect(result.latest).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('falls back to a recent window when since is invalid or missing', async () => {
+      await controller.listInboundActivity(
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        undefined,
+        undefined,
+        undefined,
+      );
+
+      const [, sinceArg] = vi.mocked(messageRepo.findInboundActivity).mock.calls[0];
+      expect(sinceArg).toBeInstanceOf(Date);
+      expect(Date.now() - sinceArg.getTime()).toBeGreaterThanOrEqual(59_000);
+      expect(Date.now() - sinceArg.getTime()).toBeLessThanOrEqual(61_000);
+    });
+
+    it('lets SUPER_ADMIN override businessId via query param', async () => {
+      await controller.listInboundActivity(
+        makeReq({ businessId: 'biz-1', role: 'SUPER_ADMIN' }),
+        'biz-2',
+        '2026-01-01T00:00:00.000Z',
+        '20',
+      );
+
+      expect(messageRepo.findInboundActivity).toHaveBeenCalledWith('biz-2', expect.any(Date), 20);
+    });
+  });
+
+  describe('markConversationRead', () => {
+    it('resets unread count for an accessible conversation', async () => {
+      conversationRepo.findById = vi.fn().mockResolvedValue(escalatedConversation);
+
+      const result = await controller.markConversationRead(
+        'conv-1',
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+      );
+
+      expect(result).toEqual({ ok: true });
+      expect(conversationRepo.resetUnread).toHaveBeenCalledWith('conv-1');
+    });
+
+    it('throws NotFoundException when conversation does not exist', async () => {
+      conversationRepo.findById = vi.fn().mockResolvedValue(null);
+
+      await expect(
+        controller.markConversationRead('conv-x', makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException for cross-tenant conversation', async () => {
+      conversationRepo.findById = vi.fn().mockResolvedValue({
+        ...escalatedConversation,
+        businessId: 'biz-2',
+      });
+
+      await expect(
+        controller.markConversationRead('conv-1', makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
