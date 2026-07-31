@@ -5,8 +5,17 @@ import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
 import { calculateCost, type AIConfig } from '@config/ai.config';
 import { AI_CONFIG_TOKEN } from '@core/tokens';
-import { extractRawFunctionCalls, stripRawFunctionCalls } from '../raw-function-calls';
+import { extractRawFunctionCalls } from '../raw-function-calls';
 
+/**
+ * llama-3.3-70b-versatile (y variantes prompt-completion) emiten las llamadas
+ * a tools como texto `<function.NAME{json}></function>` en vez de tool_calls
+ * nativos. Pasándole el parámetro `tools`, Groq intenta validar/convetir ese
+ * texto y o lo filtra como texto plano (se filtra al cliente) o devuelve un
+ * 400 "tool call validation failed". Por eso usamos prompt-completion: no se
+ * envía `tools`, se describe el formato en el system prompt y se parsea la
+ * salida con `extractRawFunctionCalls`.
+ */
 @Injectable()
 export class GroqAdapter implements LLMProviderPort {
   readonly name = 'groq';
@@ -35,14 +44,13 @@ export class GroqAdapter implements LLMProviderPort {
     const startTime = Date.now();
 
     const messages = this.translateMessages(req.messages);
-    const tools = req.tools?.map((t) => this.translateTool(t));
+    const systemPrompt = this.buildSystemPrompt(req.systemPrompt, req.tools);
 
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
         max_tokens: req.maxTokens,
-        messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
-        tools: tools?.length ? tools : undefined,
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
       });
 
       const choice = response.choices[0];
@@ -79,14 +87,17 @@ export class GroqAdapter implements LLMProviderPort {
       };
     } catch (raw: unknown) {
       const error = raw as { status?: number; message?: string };
-      if (error?.status === 400 && tools?.length) {
-        this.logger.warn(`[Groq] Tool call failed, retrying without tools: ${error.message}`);
+      if (error?.status === 400) {
+        this.logger.warn(`[Groq] 400 from API, retrying once: ${error.message}`);
         const response = await this.client.chat.completions.create({
           model: this.model,
           max_tokens: req.maxTokens,
-          messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
         });
         const choice = response.choices[0];
+        const text = choice?.message?.content ?? '';
+        const nativeToolCalls = this.extractToolCalls(choice?.message);
+        const { toolCalls, cleanedText } = extractRawFunctionCalls(text, nativeToolCalls);
         const usage = {
           inputTokens: response.usage?.prompt_tokens ?? 0,
           outputTokens: response.usage?.completion_tokens ?? 0,
@@ -95,9 +106,9 @@ export class GroqAdapter implements LLMProviderPort {
         };
         const cost = calculateCost(this.model, usage);
         return {
-          text: stripRawFunctionCalls(choice?.message?.content ?? ''),
-          toolCalls: [],
-          stopReason: 'end_turn',
+          text: cleanedText,
+          toolCalls,
+          stopReason: this.mapStopReason(choice?.finish_reason ?? null),
           usage,
           costUsd: cost.totalUsd,
           model: this.model,
@@ -116,6 +127,13 @@ export class GroqAdapter implements LLMProviderPort {
     }
   }
 
+  private buildSystemPrompt(systemPrompt: string, tools?: ToolDefinition[]): string {
+    if (!tools?.length) return systemPrompt;
+
+    const toolList = tools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
+    return `${systemPrompt}\n\nPara llamar a una herramienta, responde ÚNICAMENTE con la sintaxis:\n<function=nombre_de_la_tool>{"param": "valor"}</function>\nSin texto adicional. Herramientas disponibles:\n${toolList}`;
+  }
+
   private translateMessages(
     messages: ChatMessage[],
   ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
@@ -131,18 +149,12 @@ export class GroqAdapter implements LLMProviderPort {
         const textContent = this.extractTextContent(msg.content);
         const toolUseBlocks = msg.content.filter((b) => b.type === 'tool_use');
         if (toolUseBlocks.length > 0) {
-          result.push({
-            role: 'assistant',
-            content: textContent || null,
-            tool_calls: toolUseBlocks.map((b) => ({
-              id: b.id,
-              type: 'function' as const,
-              function: {
-                name: b.name,
-                arguments: JSON.stringify(b.input),
-              },
-            })),
-          });
+          const parts: string[] = [];
+          if (textContent) parts.push(textContent);
+          for (const block of toolUseBlocks) {
+            parts.push(`<function.${block.name}>${JSON.stringify(block.input)}</function>`);
+          }
+          result.push({ role: 'assistant', content: parts.join('\n') });
         } else if (textContent) {
           result.push({ role: 'assistant', content: textContent });
         }
@@ -150,9 +162,8 @@ export class GroqAdapter implements LLMProviderPort {
         const toolResult = msg.content.find((b) => b.type === 'tool_result');
         if (toolResult) {
           result.push({
-            role: 'tool',
-            tool_call_id: toolResult.toolUseId,
-            content: toolResult.content,
+            role: 'user',
+            content: `<function_results>\n${toolResult.content}\n</function_results>`,
           });
         }
       }
@@ -166,17 +177,6 @@ export class GroqAdapter implements LLMProviderPort {
       .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
       .map((b) => b.text)
       .join('\n');
-  }
-
-  private translateTool(tool: ToolDefinition): OpenAI.Chat.Completions.ChatCompletionTool {
-    return {
-      type: 'function' as const,
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.inputSchema,
-      },
-    };
   }
 
   private extractToolCalls(message: OpenAI.Chat.Completions.ChatCompletionMessage): ToolCall[] {
