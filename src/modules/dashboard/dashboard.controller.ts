@@ -21,7 +21,7 @@ import { CONVERSATION_REPOSITORY_TOKEN, MESSAGE_REPOSITORY_TOKEN } from '@core/t
 import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { WhatsAppAdapter } from '../channels/whatsapp/whatsapp.adapter';
+import { ChannelRouterService } from '../channels/router/channel-router.service';
 
 const MAX_REPLY_TEXT_LENGTH = 1000;
 
@@ -50,7 +50,7 @@ export class DashboardController {
     @Inject(MESSAGE_REPOSITORY_TOKEN)
     private readonly messageRepo: MessageRepositoryPort,
     @Optional()
-    private readonly whatsapp?: WhatsAppAdapter,
+    private readonly channels?: ChannelRouterService,
   ) {}
 
   @Get('escalations')
@@ -173,19 +173,19 @@ export class DashboardController {
       throw new BadRequestException(`El mensaje supera los ${MAX_REPLY_TEXT_LENGTH} caracteres`);
     }
 
-    if (!this.whatsapp) {
-      throw new ServiceUnavailableException('El canal de WhatsApp no está habilitado');
+    if (!this.channels) {
+      throw new ServiceUnavailableException('El canal de mensajería no está habilitado');
     }
 
     try {
-      await this.whatsapp.send({
+      await this.channels.send(conversation.channel, {
         businessId: conversation.businessId,
         to: conversation.customerIdentifier,
         text,
       });
     } catch (error) {
       this.logger.error(`Human reply send failed: ${error}`);
-      throw new ServiceUnavailableException('No se pudo enviar el mensaje de WhatsApp');
+      throw new ServiceUnavailableException('No se pudo enviar el mensaje');
     }
 
     // Send-then-persist: si el send falla no se guarda nada; si el persist

@@ -3,7 +3,7 @@ import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { QUEUE_NAMES, type InboundMessageJobData } from '@config/queue.config';
 import { ProcessInboundMessageUseCase } from '@core/use-cases/process-inbound-message';
-import { WhatsAppAdapter } from '@modules/channels/whatsapp/whatsapp.adapter';
+import { ChannelRouterService } from '@modules/channels/router/channel-router.service';
 
 @Processor(QUEUE_NAMES.INBOUND_MESSAGE)
 export class InboundProcessor extends WorkerHost {
@@ -11,19 +11,20 @@ export class InboundProcessor extends WorkerHost {
 
   constructor(
     private readonly processInbound: ProcessInboundMessageUseCase,
-    private readonly whatsapp: WhatsAppAdapter,
+    private readonly channels: ChannelRouterService,
   ) {
     super();
   }
 
   async process(job: Job<InboundMessageJobData>): Promise<void> {
     this.logger.log(
-      `Processing inbound message job ${job.id} for business=${job.data.businessId} phone=${job.data.customerPhone}`,
+      `Processing inbound message job ${job.id} for business=${job.data.businessId} channel=${job.data.channel} phone=${job.data.customerPhone}`,
     );
 
     try {
       const result = await this.processInbound.execute({
-        externalAccountId: job.data.businessId,
+        channel: job.data.channel,
+        externalAccountId: job.data.externalAccountId,
         from: job.data.customerPhone,
         text: job.data.text,
         externalMessageId: job.data.externalMessageId,
@@ -32,12 +33,16 @@ export class InboundProcessor extends WorkerHost {
       });
 
       if (result.responded && result.responseText) {
-        await this.whatsapp.send({
-          businessId: job.data.businessId,
+        const businessId = result.businessId ?? job.data.businessId;
+        if (!businessId) {
+          throw new Error('Inbound message responded but no businessId to send');
+        }
+        await this.channels.send(job.data.channel, {
+          businessId,
           to: job.data.customerPhone,
           text: result.responseText,
         });
-        this.logger.log(`Response sent to ${job.data.customerPhone}`);
+        this.logger.log(`Response sent to ${job.data.customerPhone} via ${job.data.channel}`);
       }
 
       // At-least-once: si el send lanzó excepción nunca llegamos aquí y el job

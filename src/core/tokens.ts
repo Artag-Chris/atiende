@@ -17,6 +17,8 @@ export const CIRCUIT_BREAKER_CONFIG_TOKEN = Symbol('CIRCUIT_BREAKER_CONFIG');
 
 // ----- LLM providers ---------------------------------------------------------
 export const LLM_PROVIDER_TOKEN = Symbol('LLM_PROVIDER');
+/** Adapter primario, consumido por LLMRouterService. */
+export const LLM_PRIMARY_PROVIDER_TOKEN = Symbol('LLM_PRIMARY_PROVIDER');
 export const LLM_PROVIDER_FALLBACK_TOKEN = Symbol('LLM_PROVIDER_FALLBACK');
 
 // ----- Embeddings ------------------------------------------------------------
@@ -24,6 +26,7 @@ export const EMBEDDING_PROVIDER_TOKEN = Symbol('EMBEDDING_PROVIDER');
 
 // ----- Channels (multi-binding: pueden ser varios habilitados a la vez) ------
 export const CHANNEL_PROVIDERS_TOKEN = Symbol('CHANNEL_PROVIDERS');
+export const CHANNEL_ACCOUNT_REPOSITORY_TOKEN = Symbol('CHANNEL_ACCOUNT_REPOSITORY');
 
 // ----- Caching (capas independientes) ----------------------------------------
 export const EXACT_CACHE_TOKEN = Symbol('EXACT_CACHE');

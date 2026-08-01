@@ -15,7 +15,7 @@ function createController(overrides?: {
   redisSet?: ReturnType<typeof vi.fn>;
   queueAdd?: ReturnType<typeof vi.fn>;
   parseWebhook?: ReturnType<typeof vi.fn>;
-  findByPhoneId?: ReturnType<typeof vi.fn>;
+  findByChannelAccount?: ReturnType<typeof vi.fn>;
   inboundSave?: ReturnType<typeof vi.fn>;
 }) {
   const redis = { set: overrides?.redisSet ?? vi.fn() } as unknown as Redis;
@@ -29,8 +29,8 @@ function createController(overrides?: {
     get: () => 'development',
   } as unknown as ConfigService;
   const businessRepo = {
-    findByPhoneId:
-      overrides?.findByPhoneId ??
+    findByChannelAccount:
+      overrides?.findByChannelAccount ??
       vi.fn().mockResolvedValue({
         id: 'biz-1',
         name: 'Test Business',
@@ -116,7 +116,7 @@ describe('WhatsAppController', () => {
         externalMessageId,
       });
       expect(redis.set).toHaveBeenCalledWith(
-        `idempotency:${externalAccountId}:${externalMessageId}`,
+        `idempotency:whatsapp:${externalAccountId}:${externalMessageId}`,
         '1',
         'EX',
         86_400,
@@ -124,8 +124,13 @@ describe('WhatsAppController', () => {
       );
       expect(queue.add).toHaveBeenCalledWith(
         'process',
-        expect.objectContaining({ inboundMessageId: 'inb-1', businessId: externalAccountId }),
-        { jobId: `${externalAccountId}-${externalMessageId}` },
+        expect.objectContaining({
+          inboundMessageId: 'inb-1',
+          channel: 'whatsapp',
+          businessId: 'biz-1',
+          externalAccountId,
+        }),
+        { jobId: `whatsapp:${externalAccountId}-${externalMessageId}` },
       );
     });
 
@@ -154,7 +159,7 @@ describe('WhatsAppController', () => {
       expect(queue.add).toHaveBeenCalledTimes(1);
     });
 
-    it('uses jobId matching externalAccountId-externalMessageId', async () => {
+    it('uses jobId namespaced by channel matching externalAccountId-externalMessageId', async () => {
       const { controller, queue } = createController({
         parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
         redisSet: vi.fn().mockResolvedValue('OK'),
@@ -164,8 +169,13 @@ describe('WhatsAppController', () => {
 
       expect(queue.add).toHaveBeenCalledWith(
         'process',
-        expect.objectContaining({ businessId: externalAccountId, externalMessageId }),
-        { jobId: `${externalAccountId}-${externalMessageId}` },
+        expect.objectContaining({
+          channel: 'whatsapp',
+          businessId: 'biz-1',
+          externalAccountId,
+          externalMessageId,
+        }),
+        { jobId: `whatsapp:${externalAccountId}-${externalMessageId}` },
       );
     });
 
@@ -173,7 +183,7 @@ describe('WhatsAppController', () => {
       const { controller, queue, inboundRepo } = createController({
         parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
         redisSet: vi.fn().mockResolvedValue('OK'),
-        findByPhoneId: vi.fn().mockResolvedValue(null),
+        findByChannelAccount: vi.fn().mockResolvedValue(null),
       });
 
       await controller.handleInbound(mockReq(JSON.stringify(payload)), '');

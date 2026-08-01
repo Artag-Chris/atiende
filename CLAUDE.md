@@ -48,6 +48,7 @@ Si eres nuevo en el repo (humano o Claude Code), lee en este orden:
 | ORM | Prisma 6 |
 | Queue | BullMQ + Redis (paquete `@nestjs/bullmq`) |
 | LLM primario | Anthropic Claude API (`claude-opus-4-7`) |
+| LLM en uso | Groq (`llama-3.3-70b-versatile`, gratis) — Kimi K3 listo pero no activo |
 | Embeddings | OpenAI `text-embedding-3-small` |
 | WhatsApp | Meta WhatsApp Business API (Cloud) |
 | Tests | Vitest |
@@ -72,7 +73,7 @@ atiende/
 │   │   ├── tokens.ts               # InjectionToken constants
 │   │   └── core.module.ts
 │   ├── modules/                    # implementaciones pluggables
-│   │   ├── llm/{claude,mock}/      # adapters de LLM
+│   │   ├── llm/{claude,groq,openai,gemini,kimi,mock}/   # adapters de LLM
 │   │   ├── channels/whatsapp/      # WhatsApp adapter
 │   │   ├── tools/{catalog,orders,info,escalation}/
 │   │   ├── embeddings/openai/
@@ -218,10 +219,10 @@ Tipos: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf`, `build`, `ci`
 - Auth completa (JWT, refresh token rotation, roles, rate limiting, audit trail).
 - Dashboard en Next.js (login, pendientes + escalaciones, conversaciones, polling). Notificaciones de escritura con `profile.name` de WhatsApp: `unreadCount` sube solo en el primer persist del USER (`MessageRepositoryPort.save` devuelve `created`; retries no inflan el badge) y se resetea cuando la IA responde o al llamar `POST .../read`; un mensaje nuevo en `RESOLVED` reabre la conversación a `ACTIVE`. El front sondea `GET /api/dashboard/inbound-activity?since=<cursor>` (primer poll silencioso, luego notifica por item) y solo muestra popup/ping si el navegador otorgó permiso de notificación. Human takeover: el detalle de conversación permite responder al cliente (`POST .../send`, solo `ESCALATED`, rol `HUMAN`) y resolver (`POST .../resolve`); mientras está `ESCALATED` el pipeline entrante persiste el USER pero la IA no responde. `MaintenanceModule` (cola BullMQ `MAINTENANCE`, repeatable cada `ESCALATION_EXPIRY_INTERVAL_HOURS`) auto-expira escalaciones inactivas > `ESCALATION_EXPIRY_HOURS` desde `lastMessageAt` a `ACTIVE`.
 - Canal WhatsApp (webhook con verificación HMAC, BullMQ). Cada mensaje de texto del payload se procesa (NFR-8: sin truncar al primero); el InboundMessage se persiste ANTES de encolar (zero-loss); el dedup de Redis es best-effort (si cae, protege la constraint única de DB + el dedup del use case). La persistencia inicial del pipeline (conversation + inbound + USER message) es atómica vía `UNIT_OF_WORK_TOKEN` (PostgresUnitOfWork, `$transaction`), con USER save idempotente por `Message.inboundMessageId` (único). El dedup solo ignora mensajes YA procesados (`processedAt`); `processedAt` se marca DESPUÉS del envío exitoso a Meta (o sin envío cuando el pipeline no responde, p.ej. escalado), así un job fallido se reintenta y re-envía en vez de perder el mensaje.
-- Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq — todos con circuit breaker. **Groq opera en modo prompt-completion (sin parámetro `tools`)**: llama-3.3-70b-versatile emite `<function.NAME{json}></function>` en texto y la validación server-side de Groq lo rechaza (400 "tool call validation failed", rompió `escalate_to_human` en prod). El adapter describe el formato en el system prompt y parsea la salida con `src/modules/llm/raw-function-calls.ts` (también aplicado a OpenAI como defensa en profundidad), para que la sintaxis de tool-call jamás llegue al cliente.
+- Proveedores LLM: Claude (primario), OpenAI (fallback + embeddings), Gemini, Groq, **Kimi K3** — enrutados por **`LLMRouterModule.forRoot(primary, fallback)`** (`src/modules/llm/router/`): los módulos provider exponen su adapter con el bloque de config correcto (`providerBlockFor` en `src/modules/llm/provider-config.ts`, elige `aiConfig.primary`/`fallback` según `features.llm.*`); el router los ata a `LLM_PRIMARY_PROVIDER_TOKEN`/`LLM_PROVIDER_FALLBACK_TOKEN` y expone `LLMRouterService` como `LLM_PROVIDER_TOKEN` (el core no cambia). `CircuitBreakerService` (closed/open/half_open, `CIRCUIT_BREAKER_CONFIG_TOKEN`) protege el primario; sin fallback + primario caído → `LLMProviderUnavailableError`. `claude`/`mock` caen al adapter mock. **Groq opera en modo prompt-completion (sin parámetro `tools`)**: llama-3.3-70b-versatile emite `<function.NAME{json}></function>` en texto y la validación server-side de Groq lo rechaza (400 "tool call validation failed", rompió `escalate_to_human` en prod). El adapter describe el formato en el system prompt y parsea la salida con `src/modules/llm/raw-function-calls.ts` (también aplicado a OpenAI como defensa en profundidad), para que la sintaxis de tool-call jamás llegue al cliente. **Kimi K3** (`src/modules/llm/kimi/`, OpenAI-compatible vía `api.moonshot.ai/v1`) está implementado pero **NO activo** — prod sigue en Groq; para activarlo: `KIMI_API_KEY` + `FEATURE_LLM_PRIMARY=kimi`. K3 siempre razona (usar `max_completion_tokens`), solo acepta `reasoning_effort=max`, y requiere reenviar `reasoning_content` en los mensajes assistant del tool loop (el core lo propaga vía `ChatMessage.reasoning`/`ChatResponse.reasoningContent`; los demás adapters ignoran esos campos). El caching de Moonshot es automático y `prompt_tokens_details.cached_tokens` se descuenta del input para el costo (pricing en `MODEL_PRICING['kimi-k3']`).
 - Caching multinivel: exacto (Redis) + semántico (pgvector) con fallback in-memory.
 - Endpoint `/health` (liveness/readiness con check de DB) usado por el HEALTHCHECK del Dockerfile.
-- 212 tests unitarios pasando en 27 archivos.
+- 248 tests unitarios pasando en 33 archivos (incluye router LLM: circuit breaker + servicio + wiring DI).
 - Seed script para usuarios admin.
 
 **Lo que NO está aún:**

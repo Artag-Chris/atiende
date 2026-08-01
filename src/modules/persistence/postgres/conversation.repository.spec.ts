@@ -13,10 +13,28 @@ type MockPrisma = {
 function createMockPrisma(): MockPrisma {
   return {
     conversation: {
-      upsert: vi.fn(),
+      upsert: vi.fn().mockResolvedValue(conversationRow()),
       update: vi.fn(),
       findMany: vi.fn(),
     },
+  };
+}
+
+function conversationRow() {
+  return {
+    id: 'conv-1',
+    businessId: 'biz-1',
+    channel: 'WHATSAPP',
+    customerIdentifier: '573001234567',
+    customerName: 'Ana',
+    status: 'ACTIVE',
+    unreadCount: 0,
+    lastMessageAt: new Date(),
+    escalatedAt: null,
+    escalationReason: null,
+    urgency: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 }
 
@@ -39,7 +57,7 @@ describe('ConversationRepository', () => {
     };
 
     it('creates with customerName when present', async () => {
-      await repo.getOrCreate('biz-1', 'WHATSAPP', '573001234567', 'Ana');
+      await repo.getOrCreate('biz-1', 'whatsapp', '573001234567', 'Ana');
 
       expect(prisma.conversation.upsert).toHaveBeenCalledWith({
         where: uniqueKey,
@@ -55,14 +73,14 @@ describe('ConversationRepository', () => {
     });
 
     it('updates customerName on an existing conversation when provided', async () => {
-      await repo.getOrCreate('biz-1', 'WHATSAPP', '573001234567', 'Ana');
+      await repo.getOrCreate('biz-1', 'whatsapp', '573001234567', 'Ana');
 
       const call = vi.mocked(prisma.conversation.upsert).mock.calls[0][0];
       expect(call.update.customerName).toBe('Ana');
     });
 
     it('keeps the existing customerName when none is provided', async () => {
-      await repo.getOrCreate('biz-1', 'WHATSAPP', '573001234567');
+      await repo.getOrCreate('biz-1', 'whatsapp', '573001234567');
 
       const call = vi.mocked(prisma.conversation.upsert).mock.calls[0][0];
       expect(call.update.customerName).toBeUndefined();

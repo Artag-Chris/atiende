@@ -49,7 +49,7 @@ El core envía **hints portables**, no mecanismos de un proveedor:
 | Hint del request | Qué significa | Qué hace cada adapter |
 |---|---|---|
 | `cacheable` | "este turno es buen candidato a caching" | Claude → `cache_control`; OpenAI → lo ignora (su cache es automático); local → lo ignora |
-| `effort` | nivel de razonamiento `low…max` | Claude → `output_config.effort`; OpenAI → `reasoning_effort` (o-series) o ignora; degrada en silencio si no soporta |
+| `effort` | nivel de razonamiento `low…max` | Claude → `output_config.effort`; OpenAI → `reasoning_effort` (o-series) o ignora; Kimi K3 → `reasoning_effort` (solo soporta `max`, degrada en silencio); degrada si no soporta |
 | `forceTool` | "usa esta tool sí o sí" | quien la soporta la fuerza; quien no, la ignora |
 | `signal` | cancelación (timeout) | todos lo respetan con `AbortController` |
 
@@ -62,28 +62,29 @@ Regla del repo: **se abstrae lo conceptualmente portable**. Lo que es provider-s
 | Groq | `src/modules/llm/groq/groq.adapter.ts` | ✅ En uso (primario en dev) |
 | OpenAI | `src/modules/llm/openai/openai.adapter.ts` | ✅ Implementado |
 | Gemini | `src/modules/llm/gemini/gemini.adapter.ts` | ✅ Implementado |
+| Kimi K3 | `src/modules/llm/kimi/kimi.adapter.ts` | ✅ Implementado, **no activo** (pendiente del switch) |
 | Mock | `src/modules/llm/mock/mock-llm.adapter.ts` | ✅ Para tests determinísticos |
 | Claude | `src/modules/llm/claude/` | ⏳ Pendiente (solo placeholder) |
 
-Cada adapter traduce el `ChatRequest` genérico a su formato nativo: el de OpenAI/Groq convierte `tool_use` ↔ `tool_calls`, y Groq además **parsea tool calls en texto plano** (`<function.NAME{json}></function>`, ver `src/modules/llm/raw-function-calls.ts`) porque su API de función-calling nativa falla con `llama-3.3-70b`. Ese parser también se aplica a OpenAI como defensa en profundidad.
+Cada adapter traduce el `ChatRequest` genérico a su formato nativo: el de OpenAI/Groq convierte `tool_use` ↔ `tool_calls`, y Groq además **parsea tool calls en texto plano** (`<function.NAME{json}></function>`, ver `src/modules/llm/raw-function-calls.ts`) porque su API de función-calling nativa falla con `llama-3.3-70b`. Ese parser también se aplica a OpenAI como defensa en profundidad. Kimi K3 es un modelo de razonamiento: **siempre razona**, usa `max_completion_tokens` (no `max_tokens`), y exige reenviar `reasoning_content` + `tool_calls` completos en los mensajes assistant entre iteraciones del tool loop — el core lo propaga vía `ChatMessage.reasoning` / `ChatResponse.reasoningContent` y el resto de adapters ignora esos campos.
 
 ### 2.3 Selección por configuración (feature flags)
 
 El adapter que se carga se decide **al boot** con variables de entorno (Zod-validadas, fail-fast):
 
 ```bash
-FEATURE_LLM_PRIMARY=groq        # claude | openai | gemini | groq | mock
+FEATURE_LLM_PRIMARY=groq        # claude | openai | gemini | groq | kimi | mock
 FEATURE_LLM_FALLBACK=           # opcional; '' = sin fallback
 FEATURE_EMBEDDINGS_PROVIDER=openai   # openai | voyage
 ```
 
-`src/config/module-registry.ts` lee la flag y registra el módulo correcto; `src/config/ai.config.ts` arma `AIConfig` (modelo, effort, timeout, retries) por proveedor; y `MODEL_PRICING` traduce tokens → USD por modelo.
+`src/config/module-registry.ts` lee la flag y registra el módulo del provider correcto (vía `providerModuleFor`) + `LLMRouterModule.forRoot(primary, fallback)`; `src/config/ai.config.ts` arma `AIConfig` (modelo, effort, timeout, retries) por proveedor; y `MODEL_PRICING` traduce tokens → USD por modelo.
 
-> ⚠️ Estado honesto: el fallback de proveedor está **diseñado** (ver §13 de `docs/01_ARCHITECTURE.md`) y su configuración (circuit breaker) ya está tipada en `ai.config.ts`, pero el router que alterna primario/fallback (`LLMRouterService`) **aún no está cableado**. Hoy el harness usa un solo proveedor por instancia.
+> ⚠️ Estado honesto: el fallback de proveedor está **cableado** (2026-08-01). `LLMRouterModule` ata los adapters a `LLM_PRIMARY_PROVIDER_TOKEN`/`LLM_PROVIDER_FALLBACK_TOKEN` y expone `LLMRouterService` como `LLM_PROVIDER_TOKEN` (el core no cambia). El `CircuitBreakerService` (closed/open/half_open) + `LLMRouterService` (primario → CB → fallback → `LLMProviderUnavailableError`) viven en `src/modules/llm/router/`. Config del CB en `CIRCUIT_BREAKER_CONFIG_TOKEN`; defaults: 5 fallos / 50% error rate en 60s, open 30s, half-open probe 1.
 
 ### 2.4 Otros planos de adaptación
 
-- **Canales** (`ChannelProviderPort`): WhatsApp hoy; el port deja espacio para web chat y Telegram (flags `FEATURE_CHANNEL_*`).
+- **Canales** (`ChannelProviderPort`): WhatsApp hoy; el port deja espacio para web chat, Telegram, Instagram y Messenger (flags `FEATURE_CHANNEL_*`). Plan aprobado para Instagram + Messenger (directo a Meta, DMs) en `docs/05_META_INSTAGRAM_MESSENGER.md`.
 - **Tools** (`ToolModulePort`): catálogo (RAG), `get_business_info`, `search_knowledge`, `create_order`, `escalate_to_human` — activables por flag.
 - **Caché** (`ResponseCachePort`): exacta (Redis) y semántica (pgvector), con fallback in-memory si Redis cae.
 - **Embeddings** (`EmbeddingProviderPort`): OpenAI hoy; Voyage como alternativa planificada.
@@ -129,7 +130,7 @@ PYMEs latinoamericanas que pierden ventas por no responder WhatsApp a tiempo:
 - **Cola con reintentos** (BullMQ, backoff exponencial) para webhook, agente y envío.
 - **Caching multinivel provider-agnostic**: capa exacta (Redis, ~5 ms) + semántica (pgvector, ~50 ms) responden buena parte del tráfico **sin llamar al LLM**; si un proveedor cae, lo que sale de cache sigue funcionando. Capa 1 (prompt caching de Anthropic) es la base de ahorro en el primario.
 - **Fallback en otros componentes**: Redis caído → cache in-memory (degrada performance, no correctness); embeddings caídos → el pipeline sigue, sin cache semántica.
-- **Circuit breaker** (configurado): umbral de fallos, error rate, ventana, half-open probe. Diseñado para abrir el circuito y rutear al fallback cuando el primario falla.
+- **Circuit breaker** (implementado): umbral de fallos, error rate, ventana, half-open probe. Abre el circuito y rutea al fallback cuando el primario falla (ver §2.3 y `src/modules/llm/router/`).
 
 ### 4.3 Seguridad de la IA (que el bot no haga daño)
 
@@ -168,7 +169,7 @@ FEATURE_LLM_PRIMARY=groq            # claude | openai | gemini | groq | mock
 GROQ_API_KEY=gsk_...                # la key del proveedor elegido
 GROQ_MODEL=llama-3.3-70b-versatile
 
-# Fallback opcional (hoy: diseño — el router aún no está cableado)
+# Fallback opcional (cableado 2026-08-01 — primario → CB → fallback)
 FEATURE_LLM_FALLBACK=openai
 OPENAI_API_KEY=sk-...
 
@@ -190,6 +191,12 @@ FEATURE_LLM_PRIMARY=gemini
 GEMINI_API_KEY=AIza...
 GEMINI_MODEL=gemini-2.0-flash
 
+# Kimi K3 (Moonshot — modelo de razonamiento, de pago)
+# Módulo listo pero NO activo todavía; prod sigue en Groq.
+FEATURE_LLM_PRIMARY=kimi
+KIMI_API_KEY=sk-...
+KIMI_MODEL=kimi-k3
+
 # Mock (sin llamadas reales, para tests)
 FEATURE_LLM_PRIMARY=mock
 ```
@@ -199,6 +206,7 @@ Notas de comportamiento al cambiar:
 - **Modelo**: `src/config/ai.config.ts` elige el modelo por proveedor (o el env `*_MODEL`/`OPENAI_FALLBACK_CHAT_MODEL`).
 - **Costo**: si el modelo no está en `MODEL_PRICING`, el tracking reporta 0 y loguea warning — hay que agregarlo ahí.
 - **Tool calling**: OpenAI/Gemini usan function-calling nativo; Groq usa el formato texto + `raw-function-calls.ts`. El core no cambia.
+- **Kimi K3**: modelo de razonamiento que **siempre piensa** (`reasoning_effort` solo acepta `max` por ahora); el caching es automático y los tokens cacheados (`prompt_tokens_details.cached_tokens`) se descuentan del input en el cálculo de costo. El razonamiento se propaga al siguiente turno del tool loop pero no se persiste entre conversaciones.
 - **Capacidades que se ganan/pierden**: p. ej. el prompt caching explícito y el adaptive thinking son de Anthropic; con otro proveedor esos mecanismos no existen, pero las capas 2 y 3 del response cache (provider-agnostic) siguen protegiendo costo y latencia.
 
 ### 5.2 Añadir un proveedor nuevo (pasos)

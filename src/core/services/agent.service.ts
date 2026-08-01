@@ -3,7 +3,7 @@ import type { LLMProviderPort, ChatResponse } from '@core/ports/llm-provider.por
 import type { AgentRunRepositoryPort } from '@core/ports/agent-run-repository.port';
 import type { ToolModulePort } from '@core/ports/tool-module.port';
 import type { AIConfig } from '@config/ai.config';
-import type { ChatMessage, ContentBlock } from '@core/domain/types';
+import type { ChatMessage, ContentBlock, Channel } from '@core/domain/types';
 import {
   LLM_PROVIDER_TOKEN,
   AI_CONFIG_TOKEN,
@@ -21,7 +21,7 @@ export interface AgentInput {
   };
   turnContext?: {
     customerPhone?: string;
-    channel?: 'whatsapp' | 'web_chat' | 'telegram';
+    channel?: Channel;
   };
 }
 
@@ -114,7 +114,11 @@ export class AgentService {
       for (const tc of response.toolCalls) {
         assistantContent.push({ type: 'tool_use', id: tc.id, name: tc.name, input: tc.input });
       }
-      messages.push({ role: 'assistant', content: assistantContent });
+      messages.push({
+        role: 'assistant',
+        content: assistantContent,
+        ...(response.reasoningContent ? { reasoning: response.reasoningContent } : {}),
+      });
 
       for (const tc of response.toolCalls) {
         const tool = toolMap.get(tc.name);
@@ -236,7 +240,12 @@ export class AgentService {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.primary.timeoutMs);
     try {
-      return await this.llm.chat({ ...req, signal: controller.signal });
+      return await this.llm.chat({
+        ...req,
+        effort: this.config.primary.effort,
+        cacheable: true,
+        signal: controller.signal,
+      });
     } finally {
       clearTimeout(timeout);
     }

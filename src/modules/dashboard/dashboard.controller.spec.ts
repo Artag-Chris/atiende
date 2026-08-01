@@ -10,7 +10,7 @@ import type { Request } from 'express';
 import { DashboardController } from './dashboard.controller';
 import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
-import type { WhatsAppAdapter } from '@modules/channels/whatsapp/whatsapp.adapter';
+import type { ChannelRouterService } from '@modules/channels/router/channel-router.service';
 
 function createConversationRepo() {
   return {
@@ -33,16 +33,16 @@ function createMessageRepo() {
   } as unknown as MessageRepositoryPort;
 }
 
-function createWhatsappAdapter() {
+function createChannels() {
   return {
     send: vi.fn().mockResolvedValue(undefined),
-  } as unknown as WhatsAppAdapter;
+  } as unknown as ChannelRouterService;
 }
 
 const escalatedConversation = {
   id: 'conv-1',
   businessId: 'biz-1',
-  channel: 'WHATSAPP',
+  channel: 'whatsapp',
   customerIdentifier: '573001234567',
   status: 'ESCALATED',
 };
@@ -55,13 +55,13 @@ describe('DashboardController', () => {
   let controller: DashboardController;
   let conversationRepo: ReturnType<typeof createConversationRepo>;
   let messageRepo: ReturnType<typeof createMessageRepo>;
-  let whatsapp: ReturnType<typeof createWhatsappAdapter>;
+  let channels: ReturnType<typeof createChannels>;
 
   beforeEach(() => {
     conversationRepo = createConversationRepo();
     messageRepo = createMessageRepo();
-    whatsapp = createWhatsappAdapter();
-    controller = new DashboardController(conversationRepo, messageRepo, whatsapp);
+    channels = createChannels();
+    controller = new DashboardController(conversationRepo, messageRepo, channels);
   });
 
   describe('listEscalations', () => {
@@ -332,7 +332,7 @@ describe('DashboardController', () => {
       );
 
       expect(result).toEqual({ ok: true });
-      expect(whatsapp.send).toHaveBeenCalledWith({
+      expect(channels.send).toHaveBeenCalledWith('whatsapp', {
         businessId: 'biz-1',
         to: '573001234567',
         text: 'Hola, te atiende Christian',
@@ -355,7 +355,7 @@ describe('DashboardController', () => {
           makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
         ),
       ).rejects.toThrow(BadRequestException);
-      expect(whatsapp.send).not.toHaveBeenCalled();
+      expect(channels.send).not.toHaveBeenCalled();
     });
 
     it('rejects text longer than 1000 chars', async () => {
@@ -380,10 +380,10 @@ describe('DashboardController', () => {
           makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
         ),
       ).rejects.toThrow(BadRequestException);
-      expect(whatsapp.send).not.toHaveBeenCalled();
+      expect(channels.send).not.toHaveBeenCalled();
     });
 
-    it('throws ServiceUnavailableException when WhatsApp adapter is not configured', async () => {
+    it('throws ServiceUnavailableException when the channel router is not configured', async () => {
       controller = new DashboardController(conversationRepo, messageRepo, undefined);
       conversationRepo.findById = vi.fn().mockResolvedValue(escalatedConversation);
 
@@ -437,12 +437,12 @@ describe('DashboardController', () => {
           makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
         ),
       ).rejects.toThrow(ConflictException);
-      expect(whatsapp.send).not.toHaveBeenCalled();
+      expect(channels.send).not.toHaveBeenCalled();
     });
 
-    it('does not persist when the WhatsApp send fails', async () => {
+    it('does not persist when the channel send fails', async () => {
       conversationRepo.findById = vi.fn().mockResolvedValue(escalatedConversation);
-      whatsapp.send = vi.fn().mockRejectedValue(new Error('Meta 500'));
+      channels.send = vi.fn().mockRejectedValue(new Error('Meta 500'));
 
       await expect(
         controller.sendHumanReply(

@@ -7,7 +7,7 @@ import type { MessageRepositoryPort } from '@core/ports/message-repository.port'
 import type { InboundMessageRepositoryPort } from '@core/ports/inbound-message-repository.port';
 import type { BusinessRepositoryPort } from '@core/ports/business-repository.port';
 import type { UnitOfWorkPort } from '@core/ports/unit-of-work.port';
-import type { ChatMessage, TurnContext } from '@core/domain/types';
+import type { ChatMessage, TurnContext, Channel } from '@core/domain/types';
 import type { ResponsePolicyPort } from '@core/ports/response-policy.port';
 import type { ResponseCachePort } from '@core/ports/response-cache.port';
 import {
@@ -39,6 +39,7 @@ REGLAS:
 - Si el cliente solicita algo fuera de tu alcance, escala a un humano.`;
 
 export interface InboundMessage {
+  channel: Channel;
   externalAccountId: string;
   from: string;
   text: string;
@@ -52,6 +53,8 @@ export interface ProcessResult {
   responseText?: string;
   error?: string;
   inboundMessageId?: string | null;
+  /** Business que atendió el mensaje (para el send saliente por canal). */
+  businessId?: string;
   /** Motivo por el que el pipeline no respondió (p.ej. conversación escalada). */
   skipReason?: 'escalated' | string;
 }
@@ -82,10 +85,13 @@ export class ProcessInboundMessageUseCase {
   async execute(message: InboundMessage): Promise<ProcessResult> {
     this.logger.log(`Processing message from ${message.from}: "${message.text}"`);
 
-    const business = await this.businessRepo.findByPhoneId(message.externalAccountId);
+    const business = await this.businessRepo.findByChannelAccount(
+      message.channel,
+      message.externalAccountId,
+    );
     if (!business) {
       this.logger.warn(
-        `No business found for phone_id=${message.externalAccountId}. Processing without persistence.`,
+        `No business found for channel=${message.channel} account=${message.externalAccountId}. Processing without persistence.`,
       );
     }
 
@@ -123,6 +129,7 @@ export class ProcessInboundMessageUseCase {
             responded: true,
             responseText: scope.rejectionMessage,
             inboundMessageId: blockedInboundId,
+            businessId: business.id,
           };
         }
       } catch (error) {
@@ -139,7 +146,7 @@ export class ProcessInboundMessageUseCase {
       const result = await this.unitOfWork.withTransaction(async (ctx) => {
         const convo = await ctx.conversationRepo.getOrCreate(
           business.id,
-          'WHATSAPP',
+          message.channel,
           message.from,
           message.customerName,
         );
@@ -226,7 +233,7 @@ export class ProcessInboundMessageUseCase {
         businessId: business.id,
         conversationId: conversation.id,
         customerPhone: message.from,
-        channel: 'whatsapp',
+        channel: message.channel,
         historyLength: conversationHistory?.length ?? 0,
         hasPersonalInfo: hasPII,
         mayInvolveStatefulTool: false,
@@ -261,7 +268,12 @@ export class ProcessInboundMessageUseCase {
               .resetUnread(conversation.id)
               .catch((err: unknown) => this.logger.warn(`Failed to reset unread: ${err}`));
           }
-          return { responded: true, responseText: cachedText, inboundMessageId: inboundMsgId };
+          return {
+            responded: true,
+            responseText: cachedText,
+            inboundMessageId: inboundMsgId,
+            businessId: business.id,
+          };
         }
       }
     }
@@ -276,7 +288,7 @@ export class ProcessInboundMessageUseCase {
           : undefined,
       turnContext: {
         customerPhone: message.from,
-        channel: 'whatsapp',
+        channel: message.channel,
       },
     });
 
@@ -298,7 +310,7 @@ export class ProcessInboundMessageUseCase {
         businessId: business.id,
         conversationId: conversation.id,
         customerPhone: message.from,
-        channel: 'whatsapp',
+        channel: message.channel,
         historyLength: conversationHistory?.length ?? 0,
         hasPersonalInfo: hasPII,
         mayInvolveStatefulTool: agentResponse.toolCallsMade.some(
@@ -363,7 +375,12 @@ export class ProcessInboundMessageUseCase {
       `Agent responded: "${finalText.slice(0, 100)}..." (${agentResponse.latencyMs}ms, $${agentResponse.costUsd.toFixed(6)})`,
     );
 
-    return { responded: true, responseText: finalText, inboundMessageId: inboundMsgId };
+    return {
+      responded: true,
+      responseText: finalText,
+      inboundMessageId: inboundMsgId,
+      businessId: business?.id,
+    };
   }
 
   async markProcessed(inboundMessageId: string): Promise<void> {

@@ -1,5 +1,6 @@
 import type { JobsOptions, QueueOptions, WorkerOptions } from 'bullmq';
 import type { Env } from './env';
+import type { Channel } from '@core/domain/types';
 
 /**
  * Configuración centralizada de BullMQ.
@@ -26,7 +27,12 @@ import type { Env } from './env';
 export const QUEUE_NAMES = {
   /** Webhook entrante → persistir + agrupar mensajes consecutivos. */
   INBOUND_MESSAGE: 'inbound-message',
-  /** Disparar el agente (LLM call + tools + persistencia del turno). */
+  /**
+   * Disparar el agente (LLM call + tools + persistencia del turno).
+   * OJO: hoy NO está registrada en runtime — el turno LLM corre síncrono en
+   * el worker INBOUND_MESSAGE (ver docs/05 §4b D2). Queda aquí como diseño
+   * futuro para aislar la carga LLM de los webhooks entrantes.
+   */
   AGENT_RUN: 'agent-run',
   /** Envío de mensajes salientes a Meta WhatsApp API. */
   OUTBOUND_MESSAGE: 'outbound-message',
@@ -192,8 +198,15 @@ export function inboundMessageJobOptions(env: Env): JobsOptions {
 // ============================================================================
 
 export interface InboundMessageJobData {
-  inboundMessageId: string; // UUID en DB
-  businessId: string;
+  /** UUID en DB. Undefined si el webhook no resolvió business (no se persiste
+   *  inbound; el use case decide y marca processed solo si corresponde). */
+  inboundMessageId?: string;
+  channel: Channel;
+  /** ID UUID del business (persistido). Opcional: si el webhook no lo resolvió,
+   *  el use case reintenta la lookup por (channel, externalAccountId). */
+  businessId?: string;
+  /** ID de la cuenta en el canal (phone_number_id, IG_ID, PAGE_ID). */
+  externalAccountId: string;
   customerPhone: string;
   text: string;
   externalMessageId: string;

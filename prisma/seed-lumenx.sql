@@ -18,6 +18,18 @@ VALUES (
   now()
 );
 
+-- Cuenta de canal WhatsApp para el business (D1: channel_accounts)
+INSERT INTO channel_accounts (id, business_id, channel, account_id, token_encrypted, is_primary, updated_at)
+VALUES (
+  'b2b2c3d4-e5f6-7890-abcd-ef1234567890',
+  'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+  'WHATSAPP',
+  '1161637943695191',
+  'dev-token-placeholder',
+  true,
+  now()
+);
+
 -- Servicios como "productos" para el catálogo
 INSERT INTO products (id, business_id, name, description, price, stock, category, active, updated_at)
 VALUES

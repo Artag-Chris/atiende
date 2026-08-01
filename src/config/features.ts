@@ -14,8 +14,8 @@ import type { Env } from './env';
 
 export interface Features {
   llm: {
-    primary: 'claude' | 'openai' | 'gemini' | 'groq' | 'mock';
-    fallback: 'claude' | 'openai' | 'gemini' | 'groq' | 'mock' | null;
+    primary: 'claude' | 'openai' | 'gemini' | 'groq' | 'kimi' | 'mock';
+    fallback: 'claude' | 'openai' | 'gemini' | 'groq' | 'kimi' | 'mock' | null;
   };
   channels: {
     whatsapp: boolean;

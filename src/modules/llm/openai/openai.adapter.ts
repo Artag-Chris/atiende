@@ -1,9 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
-import { calculateCost, type AIConfig } from '@config/ai.config';
-import { AI_CONFIG_TOKEN } from '@core/tokens';
+import { calculateCost, type LLMProviderConfig } from '@config/ai.config';
 import { extractRawFunctionCalls } from '../raw-function-calls';
 
 @Injectable()
@@ -13,13 +12,13 @@ export class OpenAIAdapter implements LLMProviderPort {
   private readonly client: OpenAI;
   private readonly model: string;
 
-  constructor(@Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig) {
+  constructor(private readonly config: LLMProviderConfig) {
     this.client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
-      timeout: config.primary.timeoutMs,
-      maxRetries: config.primary.maxRetries,
+      timeout: config.timeoutMs,
+      maxRetries: config.maxRetries,
     });
-    this.model = config.primary.model;
+    this.model = config.model;
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
@@ -28,12 +27,15 @@ export class OpenAIAdapter implements LLMProviderPort {
     const messages = this.translateMessages(req.messages);
     const tools = req.tools?.map((t) => this.translateTool(t));
 
-    const response = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: req.maxTokens,
-      messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
-      tools: tools?.length ? tools : undefined,
-    });
+    const response = await this.client.chat.completions.create(
+      {
+        model: this.model,
+        max_tokens: req.maxTokens,
+        messages: [{ role: 'system', content: req.systemPrompt }, ...messages],
+        tools: tools?.length ? tools : undefined,
+      },
+      { signal: req.signal },
+    );
 
     const choice = response.choices[0];
     if (!choice) {

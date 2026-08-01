@@ -113,7 +113,10 @@ export class WhatsAppController {
       // falla (Redis/BullMQ caídos), Meta reintenta el webhook y el dedup por
       // constraint único en DB evita duplicados — nada se pierde.
       let inboundId: string | undefined;
-      const business = await this.businessRepo.findByPhoneId(m.externalAccountId);
+      const business = await this.businessRepo.findByChannelAccount(
+        'whatsapp',
+        m.externalAccountId,
+      );
       if (business) {
         try {
           const saved = await this.inboundRepo.save({
@@ -136,8 +139,10 @@ export class WhatsAppController {
       // Dedup rápido en Redis (best-effort). Si Redis falla, la constraint
       // única (businessId, externalMessageId) en DB + el dedup del use case
       // siguen protegiendo contra doble procesamiento.
+      // Namespace por canal para que el mismo ID externo en IG/Messenger no
+      // colisione con el de WhatsApp.
       let isDuplicate = false;
-      const dedupKey = `idempotency:${m.externalAccountId}:${m.externalMessageId}`;
+      const dedupKey = `idempotency:whatsapp:${m.externalAccountId}:${m.externalMessageId}`;
       try {
         const firstSeen = await this.redis.set(dedupKey, '1', 'EX', 86_400, 'NX');
         isDuplicate = !firstSeen;
@@ -149,12 +154,14 @@ export class WhatsAppController {
         continue;
       }
 
-      const jobId = `${m.externalAccountId}-${m.externalMessageId}`;
+      const jobId = `whatsapp:${m.externalAccountId}-${m.externalMessageId}`;
       await this.inboundQueue.add(
         'process',
         {
-          inboundMessageId: inboundId ?? m.externalMessageId,
-          businessId: m.externalAccountId,
+          inboundMessageId: inboundId,
+          channel: 'whatsapp',
+          businessId: business?.id,
+          externalAccountId: m.externalAccountId,
           customerPhone: m.from,
           text,
           externalMessageId: m.externalMessageId,

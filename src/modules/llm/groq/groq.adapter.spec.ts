@@ -57,7 +57,7 @@ describe('GroqAdapter', () => {
     openaiCtorMock.mockClear();
     create = openaiClientMock.chat.completions.create;
     create.mockClear();
-    adapter = new GroqAdapter(makeConfig(), makeConfigService());
+    adapter = new GroqAdapter(makeConfig().primary, makeConfigService());
   });
 
   it('does not send the tools parameter (prompt-completion mode)', async () => {

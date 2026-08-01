@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { GetBusinessInfoTool } from './get-business-info.tool';
 import type { BusinessRepositoryPort } from '@core/ports/business-repository.port';
 
@@ -16,7 +16,6 @@ const mockBusiness: ReturnType<BusinessRepositoryPort['findById']> = Promise.res
 
 function createTool(businessRepo?: Partial<BusinessRepositoryPort>): GetBusinessInfoTool {
   return new GetBusinessInfoTool({
-    findByPhoneId: vi.fn(),
     findById: businessRepo?.findById ?? (() => mockBusiness),
     ...businessRepo,
   } as BusinessRepositoryPort);

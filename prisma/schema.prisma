@@ -42,9 +42,33 @@ model Business {
   agentRuns          AgentRun[]
   knowledgeDocuments KnowledgeDocument[]
   businessUsers      BusinessUser[]
+  channelAccounts    ChannelAccount[]
 
   @@index([archivedAt])
   @@map("businesses")
+}
+
+/// Cuenta de mensajería de un business en un canal (phone_number_id, IG_ID,
+/// PAGE_ID). Credencial de envío cifrada AES-256-GCM (ENCRYPTION_MASTER_KEY).
+/// Reemplaza a Business.whatsappPhoneId/whatsappTokenEncrypted (legacy,
+/// se mantienen temporalmente como fallback de lookup).
+model ChannelAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  channel        Channel
+  /// ID de la cuenta en el canal (phone_number_id en WhatsApp, IG_ID en Instagram, PAGE_ID en Messenger).
+  accountId      String   @map("account_id")
+  /// Token de Meta cifrado con la ENCRYPTION_MASTER_KEY (AES-256-GCM).
+  tokenEncrypted String   @map("token_encrypted")
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, accountId])
+  @@index([businessId, channel])
+  @@map("channel_accounts")
 }
 
 // ============================================================================
@@ -158,6 +182,8 @@ enum Channel {
   WHATSAPP
   WEB_CHAT
   TELEGRAM
+  INSTAGRAM
+  MESSENGER
 
   @@map("channel")
 }

@@ -72,6 +72,16 @@
   - `send_message` — envía a Meta.
   - `escalation_notification` — envía notificación al business.
 - **Por qué BullMQ:** Christian ya conoce Node/Redis. BullMQ es battle-tested, soporta retries con backoff, dead-letter queues.
+- **Nota de estado (2026-08-01):** hoy en runtime solo existen `inbound_message` y `maintenance` (ver §2.2.1). `agent_run`/`send_message` son diseño futuro; el turno LLM corre síncrono en el worker `inbound_message` (concurrency `BULLMQ_INBOUND_CONCURRENCY`). Ver `docs/05 §4b D2`.
+
+### 2.2.1 Colas registradas en runtime (2026-08-01)
+
+| Cola | Módulo | Worker | Concurrency |
+|---|---|---|---|
+| `inbound-message` | `QueueModule` | `InboundProcessor` | `BULLMQ_INBOUND_CONCURRENCY` (10) |
+| `maintenance` | `MaintenanceModule` | repeatable (escalaciones) | 1 |
+
+`AGENT_RUN`, `OUTBOUND_MESSAGE`, `CATALOG_INDEXING`, `KNOWLEDGE_INDEXING`, `CACHE_INVALIDATION`, `NOTIFICATION` están definidos en `queue.config.ts` pero **no registrados** (deuda de diseño, ver `docs/05 §4b`).
 
 ### 2.3 Agent Worker
 
@@ -1118,76 +1128,30 @@ Cuando Anthropic devuelve 5xx o agota retries:
 
 Patrón clásico: si el provider primario falla N veces en una ventana de tiempo, el circuit se "abre" y todas las requests siguientes se rutean al fallback durante un timeout. Después de eso, intenta una request de prueba para ver si se recuperó.
 
-```typescript
-// src/core/services/llm-router.service.ts
-@Injectable()
-export class LLMRouterService implements LLMProvider {
-  readonly name = 'router';
+**Implementación (2026-08-01)** — capa en `src/modules/llm/router/`:
 
-  constructor(
-    @Inject('PRIMARY_LLM') private readonly primary: LLMProvider,
-    @Inject('FALLBACK_LLM') private readonly fallback: LLMProvider | null,
-    private readonly circuit: CircuitBreaker,
-  ) {}
-
-  async chat(req: ChatRequest): Promise<ChatResponse> {
-    if (this.circuit.isOpen('primary')) {
-      return this.callFallback(req, 'circuit_open');
-    }
-
-    try {
-      const result = await this.primary.chat(req);
-      this.circuit.recordSuccess('primary');
-      return result;
-    } catch (err) {
-      this.circuit.recordFailure('primary');
-      if (this.isRetriable(err) && this.fallback) {
-        return this.callFallback(req, 'primary_failed');
-      }
-      throw err;
-    }
-  }
-
-  private async callFallback(req: ChatRequest, reason: string): Promise<ChatResponse> {
-    if (!this.fallback) {
-      return this.staticFallback(req);  // último recurso
-    }
-    this.metrics.incrementFallback(reason);
-    return this.fallback.chat(req);
-  }
-
-  private staticFallback(req: ChatRequest): ChatResponse {
-    // Respuesta estática + escalamiento automático
-    return {
-      text: "Estamos teniendo dificultades técnicas momentáneas. Un asesor te responderá en breve.",
-      toolCalls: [{ name: 'escalate_to_human', input: { reason: 'llm_unavailable' } }],
-      // ...
-    };
-  }
-}
-```
+- `LLMRouterService` (`llm-router.service.ts`) implementa `LLMProviderPort` y se registra como `LLM_PROVIDER_TOKEN`, así el core (AgentService) habla con la misma interfaz sin cambios. `chat()`: si el breaker está abierto → fallback (`circuit_open`); si el primario responde → registra éxito; si falla → registra fallo y delega al fallback (`primary_failure`). Sin fallback y primario no disponible → lanza `LLMProviderUnavailableError`. `isHealthy()` consulta primario y luego fallback.
+- `CircuitBreakerService` (`circuit-breaker.service.ts`) — estados `closed | open | half_open`; config vía `CIRCUIT_BREAKER_CONFIG_TOKEN` (failureThreshold, errorRateThreshold, windowMs, openTimeoutMs, halfOpenProbes) con roll de ventana por tiempo.
+- `LLMRouterModule.forRoot(primary, fallback)` (`llm-router.module.ts`) ata los adapters concretos a `LLM_PRIMARY_PROVIDER_TOKEN` / `LLM_PROVIDER_FALLBACK_TOKEN` (`useExisting`) y expone `LLMRouterService` como `LLM_PROVIDER_TOKEN`. `claude`/`mock` (sin adapter implementado) caen a `MockLLMAdapter`. Se carga en `module-registry.ts` tras los módulos provider.
+- Los provider modules (`GroqModule`, `KimiModule`, ...) ya no registran tokens de rol: solo exponen su adapter con el bloque de config correcto (`src/modules/llm/provider-config.ts` → `providerBlockFor(features, aiConfig, provider)` elige `aiConfig.primary` o `aiConfig.fallback`).
 
 **Configuración del circuit breaker:**
 - Threshold: 5 fallos consecutivos o > 50% error rate en ventana de 60s.
 - Open timeout: 30 segundos.
 - Half-open probe: 1 request de prueba antes de cerrar el circuit.
 
-Implementación: librería **`opossum`** (Node, battle-tested) o un decorator de NestJS custom.
-
 ### 13.4 Cuándo activar fallback (configuración de features)
 
 ```typescript
 // src/config/features.ts
 llm: {
-  primary: 'claude',
-  fallback: 'openai',           // null = solo static fallback
-  fallbackStrategy: 'on_error', // 'on_error' | 'parallel_race' | 'cost_optimized'
+  primary: 'groq',                  // claude | openai | gemini | groq | kimi | mock
+  fallback: 'kimi',                 // null = sin fallback (lanza LLMProviderUnavailableError)
 },
 ```
 
-- **`on_error`** (default): el fallback se llama solo si el primario falla.
-- **`parallel_race`** (futuro): manda ambos en paralelo, devuelve el primero — útil si latencia es crítica. Duplica costo, descartado v1.
-- **`cost_optimized`** (futuro): rutea según tipo de turno — Claude para razonamiento complejo, OpenAI/Haiku para FAQs.
+- **`on_error`** (única estrategia implementada, 2026-08-01): el fallback se llama solo si el primario falla o el breaker está abierto. `parallel_race` y `cost_optimized` siguen siendo diseño futuro (no hay `fallbackStrategy` en `Features` aún).
+- `module-registry.ts` carga el módulo del fallback solo si es distinto del primario y expone el router como `LLM_PROVIDER_TOKEN`.
 
 ### 13.5 Calidad degradada vs caída total
 

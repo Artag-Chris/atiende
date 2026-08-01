@@ -1,9 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenerativeAI, type Content, type Part } from '@google/generative-ai';
 import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
-import { calculateCost, type AIConfig } from '@config/ai.config';
-import { AI_CONFIG_TOKEN } from '@core/tokens';
+import { calculateCost, type LLMProviderConfig } from '@config/ai.config';
 
 @Injectable()
 export class GeminiAdapter implements LLMProviderPort {
@@ -12,13 +11,13 @@ export class GeminiAdapter implements LLMProviderPort {
   private readonly genAI: GoogleGenerativeAI;
   private readonly model: string;
 
-  constructor(@Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig) {
+  constructor(private readonly config: LLMProviderConfig) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY not configured');
     }
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.config.primary.model;
+    this.model = this.config.model;
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {

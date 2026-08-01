@@ -3,14 +3,16 @@ import type { Job } from 'bullmq';
 import { InboundProcessor } from './inbound.processor';
 import type { InboundMessageJobData } from '@config/queue.config';
 import type { ProcessInboundMessageUseCase } from '@core/use-cases/process-inbound-message';
-import type { WhatsAppAdapter } from '@modules/channels/whatsapp/whatsapp.adapter';
+import type { ChannelRouterService } from '@modules/channels/router/channel-router.service';
 
 function createJob(overrides?: Partial<InboundMessageJobData>): Job<InboundMessageJobData> {
   return {
     id: 'job-1',
     data: {
       inboundMessageId: 'ext-1',
+      channel: 'whatsapp',
       businessId: 'biz-1',
+      externalAccountId: 'phone-id-1',
       customerPhone: '573001234567',
       text: 'Hola',
       externalMessageId: 'ext-1',
@@ -25,7 +27,7 @@ describe('InboundProcessor', () => {
     execute: ReturnType<typeof vi.fn>;
     markProcessed: ReturnType<typeof vi.fn>;
   };
-  let whatsapp: { send: ReturnType<typeof vi.fn> };
+  let channels: { send: ReturnType<typeof vi.fn> };
   let processor: InboundProcessor;
 
   beforeEach(() => {
@@ -34,21 +36,31 @@ describe('InboundProcessor', () => {
         responded: true,
         responseText: 'Respuesta',
         inboundMessageId: 'inb-1',
+        businessId: 'biz-1',
       }),
       markProcessed: vi.fn().mockResolvedValue(undefined),
     };
-    whatsapp = { send: vi.fn().mockResolvedValue(undefined) };
+    channels = { send: vi.fn().mockResolvedValue(undefined) };
     processor = new InboundProcessor(
       processInbound as unknown as ProcessInboundMessageUseCase,
-      whatsapp as unknown as WhatsAppAdapter,
+      channels as unknown as ChannelRouterService,
     );
   });
 
-  it('sends the response and marks the inbound message processed after success', async () => {
+  it('sends the response via the channel router and marks the inbound message processed after success', async () => {
     await processor.process(createJob());
 
     expect(processInbound.execute).toHaveBeenCalledTimes(1);
-    expect(whatsapp.send).toHaveBeenCalledWith({
+    expect(processInbound.execute).toHaveBeenCalledWith({
+      channel: 'whatsapp',
+      externalAccountId: 'phone-id-1',
+      from: '573001234567',
+      text: 'Hola',
+      externalMessageId: 'ext-1',
+      rawPayload: { entry: [] },
+      customerName: undefined,
+    });
+    expect(channels.send).toHaveBeenCalledWith('whatsapp', {
       businessId: 'biz-1',
       to: '573001234567',
       text: 'Respuesta',
@@ -61,7 +73,7 @@ describe('InboundProcessor', () => {
 
     await processor.process(createJob());
 
-    expect(whatsapp.send).not.toHaveBeenCalled();
+    expect(channels.send).not.toHaveBeenCalled();
     expect(processInbound.markProcessed).not.toHaveBeenCalled();
   });
 
@@ -74,7 +86,7 @@ describe('InboundProcessor', () => {
 
     await processor.process(createJob());
 
-    expect(whatsapp.send).not.toHaveBeenCalled();
+    expect(channels.send).not.toHaveBeenCalled();
     expect(processInbound.markProcessed).toHaveBeenCalledWith('inb-esc');
   });
 
@@ -83,16 +95,17 @@ describe('InboundProcessor', () => {
       responded: true,
       responseText: 'Respuesta',
       inboundMessageId: null,
+      businessId: 'biz-1',
     });
 
     await processor.process(createJob());
 
-    expect(whatsapp.send).toHaveBeenCalledTimes(1);
+    expect(channels.send).toHaveBeenCalledTimes(1);
     expect(processInbound.markProcessed).not.toHaveBeenCalled();
   });
 
   it('rethrows when the send fails so the job is retried', async () => {
-    whatsapp.send = vi.fn().mockRejectedValue(new Error('Meta 500'));
+    channels.send = vi.fn().mockRejectedValue(new Error('Meta 500'));
 
     await expect(processor.process(createJob())).rejects.toThrow('Meta 500');
     expect(processInbound.markProcessed).not.toHaveBeenCalled();
@@ -102,7 +115,7 @@ describe('InboundProcessor', () => {
     processInbound.execute = vi.fn().mockRejectedValue(new Error('LLM timeout'));
 
     await expect(processor.process(createJob())).rejects.toThrow('LLM timeout');
-    expect(whatsapp.send).not.toHaveBeenCalled();
+    expect(channels.send).not.toHaveBeenCalled();
     expect(processInbound.markProcessed).not.toHaveBeenCalled();
   });
 });

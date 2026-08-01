@@ -11,6 +11,8 @@ import type {
  * Cada provider lo mapea a su parámetro nativo:
  *   - Claude: output_config.effort (xhigh: Opus 4.7 only; max: Opus only)
  *   - OpenAI: ignored o mapeado a reasoning_effort (solo o-series)
+ *   - Kimi K3: mapeado a reasoning_effort (actualmente solo soporta 'max';
+ *     cualquier otro valor degrada a 'max' en silencio)
  *   - Local: ignored
  *
  * Trade-off provider-agnostic: si pides 'max' y el provider no lo soporta,
@@ -53,6 +55,12 @@ export interface ChatResponse {
   costUsd: number;
   /** Nombre del modelo usado (puede no ser el solicitado si el adapter ruteó). */
   model: string;
+  /**
+   * Texto de razonamiento del modelo (p.ej. reasoning_content de Kimi K3).
+   * Provider-specific: si el adapter no lo soporta, lo omite. El core puede
+   * propagarlo a la siguiente iteración del tool loop vía ChatMessage.reasoning.
+   */
+  reasoningContent?: string;
 }
 
 /**

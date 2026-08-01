@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import {
   AGENT_RUN_REPOSITORY_TOKEN,
   BUSINESS_REPOSITORY_TOKEN,
+  CHANNEL_ACCOUNT_REPOSITORY_TOKEN,
   CONVERSATION_REPOSITORY_TOKEN,
   MESSAGE_REPOSITORY_TOKEN,
   INBOUND_MESSAGE_REPOSITORY_TOKEN,
@@ -10,6 +11,7 @@ import {
 import { PrismaModule } from './prisma.module';
 import { BusinessRepository } from './business.repository';
 import { ConversationRepository } from './conversation.repository';
+import { ChannelAccountRepository } from './channel-account.repository';
 import { MessageRepository } from './message.repository';
 import { AgentRunRepository } from './agent-run.repository';
 import { InboundMessageRepository } from './inbound-message.repository';
@@ -22,6 +24,7 @@ import { PostgresUnitOfWork } from './unit-of-work';
   providers: [
     BusinessRepository,
     ConversationRepository,
+    ChannelAccountRepository,
     MessageRepository,
     AgentRunRepository,
     InboundMessageRepository,
@@ -40,6 +43,10 @@ import { PostgresUnitOfWork } from './unit-of-work';
       useExisting: ConversationRepository,
     },
     {
+      provide: CHANNEL_ACCOUNT_REPOSITORY_TOKEN,
+      useExisting: ChannelAccountRepository,
+    },
+    {
       provide: MESSAGE_REPOSITORY_TOKEN,
       useExisting: MessageRepository,
     },
@@ -55,6 +62,7 @@ import { PostgresUnitOfWork } from './unit-of-work';
   exports: [
     BusinessRepository,
     ConversationRepository,
+    ChannelAccountRepository,
     MessageRepository,
     AgentRunRepository,
     InboundMessageRepository,
@@ -62,6 +70,7 @@ import { PostgresUnitOfWork } from './unit-of-work';
     AGENT_RUN_REPOSITORY_TOKEN,
     BUSINESS_REPOSITORY_TOKEN,
     CONVERSATION_REPOSITORY_TOKEN,
+    CHANNEL_ACCOUNT_REPOSITORY_TOKEN,
     MESSAGE_REPOSITORY_TOKEN,
     INBOUND_MESSAGE_REPOSITORY_TOKEN,
     UNIT_OF_WORK_TOKEN,

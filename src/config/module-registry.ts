@@ -1,13 +1,18 @@
 import type { DynamicModule, Type } from '@nestjs/common';
 import type { Features } from './features';
+import type { LLMProviderName } from './ai.config';
 import { WhatsAppModule } from '../modules/channels/whatsapp/whatsapp.module';
 import { OpenAIModule } from '../modules/llm/openai/openai.module';
 import { GeminiModule } from '../modules/llm/gemini/gemini.module';
 import { GroqModule } from '../modules/llm/groq/groq.module';
+import { KimiModule } from '../modules/llm/kimi/kimi.module';
 import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
+import { LLMRouterModule } from '../modules/llm/router/llm-router.module';
+import { ChannelRouterModule } from '../modules/channels/router/channel-router.module';
 import { PostgresPersistenceModule } from '../modules/persistence/postgres/postgres-persistence.module';
 import { ToolsModule } from '../modules/tools/tools.module';
 import { RedisModule } from '../modules/infrastructure/redis/redis.module';
+import { RateLimitModule } from '../modules/infrastructure/rate-limit/rate-limit.module';
 import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { MaintenanceModule } from '../modules/maintenance/maintenance.module';
@@ -33,6 +38,7 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Infrastructure (siempre habilitada) -----
   modules.push(RedisModule);
+  modules.push(RateLimitModule);
 
   // ----- Health (siempre habilitada — liveness/readiness para orquestación) -----
   modules.push(HealthModule);
@@ -40,35 +46,19 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   // ----- Tools (siempre habilitadas) -----
   modules.push(ToolsModule);
 
-  // ----- LLM primario -----
-  switch (features.llm.primary) {
-    case 'openai':
-      modules.push(OpenAIModule);
-      break;
-    case 'gemini':
-      modules.push(GeminiModule);
-      break;
-    case 'groq':
-      modules.push(GroqModule);
-      break;
-    // case 'claude': modules.push(ClaudeModule); break;
-    default:
-      modules.push(MockLLMModule);
-      break;
+  // ----- LLM providers (primario + fallback) -----
+  // Los módulos provider registran su adapter con el bloque de config correcto
+  // (primary o fallback según las feature flags). LLMRouterModule ata los
+  // adapters a los tokens de rol y expone LLMRouterService como LLM_PROVIDER_TOKEN.
+  modules.push(providerModuleFor(features.llm.primary));
+  if (features.llm.fallback && features.llm.fallback !== features.llm.primary) {
+    modules.push(providerModuleFor(features.llm.fallback));
   }
+  modules.push(LLMRouterModule.forRoot(features.llm.primary, features.llm.fallback));
 
-  // ----- LLM fallback (opcional) -----
-  // NOTA: El módulo de fallback NO se carga actualmente porque tanto GroqModule
-  // como OpenAIModule registran LLM_PROVIDER_TOKEN, y el último en cargarse pisa
-  // al primario. Cuando exista un LLMRouterService que use LLM_PROVIDER_FALLBACK_TOKEN
-  // por separado, habilitar esto con módulos que registren solo el token de fallback.
-  // if (features.llm.fallback === 'openai' && features.llm.primary !== 'openai') {
-  //   modules.push(OpenAIModule);
-  // } else if (features.llm.fallback === 'groq' && features.llm.primary !== 'groq') {
-  //   modules.push(GroqModule);
-  // } else if (features.llm.fallback === 'gemini' && features.llm.primary !== 'gemini') {
-  //   modules.push(GeminiModule);
-  // }
+  // ----- Router de canales (siempre presente; los providers se registran en
+  // CHANNEL_PROVIDERS_TOKEN desde cada módulo de canal según feature flags) -----
+  modules.push(ChannelRouterModule);
 
   // ----- Canales -----
   if (features.channels.whatsapp) modules.push(WhatsAppModule);
@@ -107,4 +97,20 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   modules.push(MaintenanceModule);
 
   return modules;
+}
+
+function providerModuleFor(provider: LLMProviderName): Type<unknown> {
+  switch (provider) {
+    case 'openai':
+      return OpenAIModule;
+    case 'gemini':
+      return GeminiModule;
+    case 'groq':
+      return GroqModule;
+    case 'kimi':
+      return KimiModule;
+    default:
+      // 'claude' (sin adapter implementado) y 'mock' caen al mock.
+      return MockLLMModule;
+  }
 }

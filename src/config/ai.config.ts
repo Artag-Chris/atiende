@@ -99,13 +99,23 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     cacheWrite1hPer1M: 0,
     cacheReadPer1M: 0,
   },
+  // Kimi K3 (Moonshot AI). Cached input: $0.30/M vía prompt_tokens_details.cached_tokens.
+  // Cache write sin tarifa pública confirmada — se usa 3.0 conservador (igual que input);
+  // verificar contra platform.moonshot.ai/pricing al implementar en producción.
+  'kimi-k3': {
+    inputPer1M: 3.0,
+    outputPer1M: 15.0,
+    cacheWrite5mPer1M: 3.0,
+    cacheWrite1hPer1M: 3.0,
+    cacheReadPer1M: 0.3,
+  },
 };
 
 // ============================================================================
 // Tipos de configuración
 // ============================================================================
 
-export type LLMProviderName = 'claude' | 'openai' | 'gemini' | 'groq' | 'mock';
+export type LLMProviderName = 'claude' | 'openai' | 'gemini' | 'groq' | 'kimi' | 'mock';
 
 export interface LLMProviderConfig {
   provider: LLMProviderName;
@@ -170,27 +180,35 @@ export function buildAIConfig(env: Env): AIConfig {
   const isPrimaryOpenAI = env.FEATURE_LLM_PRIMARY === 'openai';
   const isPrimaryGemini = env.FEATURE_LLM_PRIMARY === 'gemini';
   const isPrimaryGroq = env.FEATURE_LLM_PRIMARY === 'groq';
+  const isPrimaryKimi = env.FEATURE_LLM_PRIMARY === 'kimi';
 
   return {
     primary: {
       provider: env.FEATURE_LLM_PRIMARY,
       model: modelForProvider(env.FEATURE_LLM_PRIMARY, env),
-      effort: isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq ? 'medium' : env.ANTHROPIC_EFFORT,
-      maxTokens: env.ANTHROPIC_MAX_TOKENS,
+      effort:
+        isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq || isPrimaryKimi
+          ? 'medium'
+          : env.ANTHROPIC_EFFORT,
+      maxTokens: isPrimaryKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS,
       timeoutMs: isPrimaryOpenAI
         ? env.OPENAI_TIMEOUT_MS
         : isPrimaryGemini
           ? env.GEMINI_TIMEOUT_MS
           : isPrimaryGroq
             ? env.GROQ_TIMEOUT_MS
-            : env.ANTHROPIC_TIMEOUT_MS,
+            : isPrimaryKimi
+              ? env.KIMI_TIMEOUT_MS
+              : env.ANTHROPIC_TIMEOUT_MS,
       maxRetries: isPrimaryOpenAI
         ? env.OPENAI_MAX_RETRIES
         : isPrimaryGemini
           ? env.GEMINI_MAX_RETRIES
           : isPrimaryGroq
             ? env.GROQ_MAX_RETRIES
-            : env.ANTHROPIC_MAX_RETRIES,
+            : isPrimaryKimi
+              ? env.KIMI_MAX_RETRIES
+              : env.ANTHROPIC_MAX_RETRIES,
     },
     fallback: buildFallbackConfig(env),
     promptCaching: {
@@ -218,25 +236,30 @@ function buildFallbackConfig(env: Env): LLMProviderConfig | null {
   const isOpenAI = fallback === 'openai';
   const isGemini = fallback === 'gemini';
   const isGroq = fallback === 'groq';
+  const isKimi = fallback === 'kimi';
   return {
     provider: fallback,
     model: modelForProvider(fallback, env),
     effort: 'medium',
-    maxTokens: env.ANTHROPIC_MAX_TOKENS,
+    maxTokens: isKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS,
     timeoutMs: isOpenAI
       ? env.OPENAI_TIMEOUT_MS
       : isGemini
         ? env.GEMINI_TIMEOUT_MS
         : isGroq
           ? env.GROQ_TIMEOUT_MS
-          : env.ANTHROPIC_TIMEOUT_MS,
+          : isKimi
+            ? env.KIMI_TIMEOUT_MS
+            : env.ANTHROPIC_TIMEOUT_MS,
     maxRetries: isOpenAI
       ? env.OPENAI_MAX_RETRIES
       : isGemini
         ? env.GEMINI_MAX_RETRIES
         : isGroq
           ? env.GROQ_MAX_RETRIES
-          : env.ANTHROPIC_MAX_RETRIES,
+          : isKimi
+            ? env.KIMI_MAX_RETRIES
+            : env.ANTHROPIC_MAX_RETRIES,
   };
 }
 
@@ -250,6 +273,8 @@ function modelForProvider(provider: LLMProviderName, env: Env): string {
       return env.GEMINI_MODEL;
     case 'groq':
       return env.GROQ_MODEL;
+    case 'kimi':
+      return env.KIMI_MODEL;
     case 'mock':
       return 'mock';
   }

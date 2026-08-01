@@ -1,14 +1,14 @@
 import { Global, Module } from '@nestjs/common';
-import { LLM_PROVIDER_TOKEN, LLM_PROVIDER_FALLBACK_TOKEN } from '@core/tokens';
 import { MockLLMAdapter } from './mock-llm.adapter';
 
+/**
+ * Mock sin dependencias: se usa cuando el provider configurado no tiene
+ * adapter implementado (p.ej. 'claude'). No registra los tokens de rol —
+ * esos los ata LLMRouterModule.
+ */
 @Global()
 @Module({
-  providers: [
-    MockLLMAdapter,
-    { provide: LLM_PROVIDER_TOKEN, useExisting: MockLLMAdapter },
-    { provide: LLM_PROVIDER_FALLBACK_TOKEN, useExisting: MockLLMAdapter },
-  ],
-  exports: [LLM_PROVIDER_TOKEN, LLM_PROVIDER_FALLBACK_TOKEN],
+  providers: [MockLLMAdapter],
+  exports: [MockLLMAdapter],
 })
 export class MockLLMModule {}

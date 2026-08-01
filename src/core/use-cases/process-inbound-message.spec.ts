@@ -11,6 +11,7 @@ import type { ResponseCachePort } from '@core/ports/response-cache.port';
 import type { UnitOfWorkPort } from '@core/ports/unit-of-work.port';
 
 const baseMessage = {
+  channel: 'whatsapp' as const,
   externalAccountId: 'phone-id-1',
   from: '573001234567',
   text: 'Hola, ¿tienen horario de atención?',
@@ -40,7 +41,7 @@ function createAgentRunRepo() {
 
 function createBusinessRepo() {
   return {
-    findByPhoneId: vi.fn().mockResolvedValue({
+    findByChannelAccount: vi.fn().mockResolvedValue({
       id: 'biz-1',
       name: 'Test Business',
       whatsappPhoneId: 'phone-id-1',
@@ -190,7 +191,7 @@ describe('ProcessInboundMessageUseCase', () => {
   });
 
   it('processes without persistence when business not found', async () => {
-    ctx.businessRepo.findByPhoneId = vi.fn().mockResolvedValue(null);
+    ctx.businessRepo.findByChannelAccount = vi.fn().mockResolvedValue(null);
 
     const result = await ctx.useCase.execute(baseMessage);
 
@@ -385,7 +386,7 @@ describe('ProcessInboundMessageUseCase', () => {
     expect(typeof txFn).toBe('function');
     expect(ctx.conversationRepo.getOrCreate).toHaveBeenCalledWith(
       'biz-1',
-      'WHATSAPP',
+      'whatsapp',
       '573001234567',
       undefined,
     );
@@ -442,7 +443,7 @@ describe('ProcessInboundMessageUseCase', () => {
   });
 
   it('returns early when the business is missing (no transaction, no persistence)', async () => {
-    ctx.businessRepo.findByPhoneId = vi.fn().mockResolvedValue(null);
+    ctx.businessRepo.findByChannelAccount = vi.fn().mockResolvedValue(null);
 
     const result = await ctx.useCase.execute(baseMessage);
 

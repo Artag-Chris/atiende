@@ -1,10 +1,9 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { ChatRequest, ChatResponse, LLMProviderPort } from '@core/ports/llm-provider.port';
 import type { ChatMessage, ContentBlock, ToolCall, ToolDefinition } from '@core/domain/types';
-import { calculateCost, type AIConfig } from '@config/ai.config';
-import { AI_CONFIG_TOKEN } from '@core/tokens';
+import { calculateCost, type LLMProviderConfig } from '@config/ai.config';
 import { extractRawFunctionCalls } from '../raw-function-calls';
 
 /**
@@ -24,7 +23,7 @@ export class GroqAdapter implements LLMProviderPort {
   private readonly model: string;
 
   constructor(
-    @Inject(AI_CONFIG_TOKEN) private readonly config: AIConfig,
+    private readonly config: LLMProviderConfig,
     private readonly configService: ConfigService,
   ) {
     const apiKey = this.configService.get<string>('GROQ_API_KEY');
@@ -34,10 +33,10 @@ export class GroqAdapter implements LLMProviderPort {
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://api.groq.com/openai/v1',
-      timeout: config.primary.timeoutMs,
-      maxRetries: config.primary.maxRetries,
+      timeout: config.timeoutMs,
+      maxRetries: config.maxRetries,
     });
-    this.model = config.primary.model;
+    this.model = config.model;
   }
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
@@ -47,11 +46,14 @@ export class GroqAdapter implements LLMProviderPort {
     const systemPrompt = this.buildSystemPrompt(req.systemPrompt, req.tools);
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: this.model,
-        max_tokens: req.maxTokens,
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
-      });
+      const response = await this.client.chat.completions.create(
+        {
+          model: this.model,
+          max_tokens: req.maxTokens,
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        },
+        { signal: req.signal },
+      );
 
       const choice = response.choices[0];
       if (!choice) {
@@ -89,11 +91,14 @@ export class GroqAdapter implements LLMProviderPort {
       const error = raw as { status?: number; message?: string };
       if (error?.status === 400) {
         this.logger.warn(`[Groq] 400 from API, retrying once: ${error.message}`);
-        const response = await this.client.chat.completions.create({
-          model: this.model,
-          max_tokens: req.maxTokens,
-          messages: [{ role: 'system', content: systemPrompt }, ...messages],
-        });
+        const response = await this.client.chat.completions.create(
+          {
+            model: this.model,
+            max_tokens: req.maxTokens,
+            messages: [{ role: 'system', content: systemPrompt }, ...messages],
+          },
+          { signal: req.signal },
+        );
         const choice = response.choices[0];
         const text = choice?.message?.content ?? '';
         const nativeToolCalls = this.extractToolCalls(choice?.message);

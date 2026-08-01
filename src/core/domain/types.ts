@@ -9,8 +9,11 @@
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
 
-/** Canal por el que llega/sale un mensaje. Multi-channel ready desde día 1. */
-export type Channel = 'whatsapp' | 'web_chat' | 'telegram';
+/**
+ * Canal por el que llega/sale un mensaje. Única fuente de verdad del core.
+ * Los repositorios mapean a los enums de Prisma (WHATSAPP/WEB_CHAT/...).
+ */
+export type Channel = 'whatsapp' | 'web_chat' | 'telegram' | 'instagram' | 'messenger';
 
 /**
  * Invocación de una tool por el agente.
@@ -44,6 +47,13 @@ export type ContentBlock =
 export interface ChatMessage {
   role: MessageRole;
   content: ContentBlock[];
+  /**
+   * Texto de razonamiento del provider (p.ej. el reasoning_content de Kimi K3).
+   * Solo los adapters que lo soporten lo rellenan; el resto lo ignora.
+   * Necesario para devolvérselo al modelo en la siguiente iteración del tool
+   * loop (K3 exige reenviar reasoning_content en los mensajes assistant).
+   */
+  reasoning?: string;
 }
 
 // ============================================================================

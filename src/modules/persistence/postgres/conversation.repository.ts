@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaDbClient, PrismaService } from './prisma.service';
-import type { Conversation, Channel, ConversationUrgency } from '@prisma/client';
+import type { Conversation, ConversationUrgency } from '@prisma/client';
+import { toDomainChannel, toPrismaChannel } from './channel.mapper';
+import type { ConversationData } from '@core/ports/conversation-repository.port';
+import type { Channel } from '@core/domain/types';
 
 @Injectable()
 export class ConversationRepository {
@@ -13,12 +16,12 @@ export class ConversationRepository {
     channel: Channel,
     customerIdentifier: string,
     customerName?: string,
-  ): Promise<Conversation> {
-    return this.prisma.conversation.upsert({
+  ): Promise<ConversationData> {
+    const row = await this.prisma.conversation.upsert({
       where: {
         businessId_channel_customerIdentifier: {
           businessId,
-          channel,
+          channel: toPrismaChannel(channel),
           customerIdentifier,
         },
       },
@@ -28,19 +31,20 @@ export class ConversationRepository {
       },
       create: {
         businessId,
-        channel,
+        channel: toPrismaChannel(channel),
         customerIdentifier,
         customerName,
         lastMessageAt: new Date(),
       },
     });
+    return this.toDomain(row);
   }
 
   async findPending(
     businessId?: string,
     options?: { limit?: number; offset?: number },
-  ): Promise<Conversation[]> {
-    return this.prisma.conversation.findMany({
+  ): Promise<ConversationData[]> {
+    const rows = await this.prisma.conversation.findMany({
       where: {
         ...(businessId ? { businessId } : {}),
         unreadCount: { gt: 0 },
@@ -50,6 +54,7 @@ export class ConversationRepository {
       take: options?.limit ?? 50,
       skip: options?.offset ?? 0,
     });
+    return rows.map((r) => this.toDomain(r));
   }
 
   async incrementUnread(id: string): Promise<void> {
@@ -66,10 +71,11 @@ export class ConversationRepository {
     });
   }
 
-  async findById(id: string): Promise<Conversation | null> {
-    return this.prisma.conversation.findUnique({
+  async findById(id: string): Promise<ConversationData | null> {
+    const row = await this.prisma.conversation.findUnique({
       where: { id },
     });
+    return row ? this.toDomain(row) : null;
   }
 
   async touchLastMessage(id: string): Promise<void> {
@@ -82,8 +88,8 @@ export class ConversationRepository {
   async findEscalated(
     businessId?: string,
     options?: { limit?: number; offset?: number },
-  ): Promise<Conversation[]> {
-    return this.prisma.conversation.findMany({
+  ): Promise<ConversationData[]> {
+    const rows = await this.prisma.conversation.findMany({
       where: {
         status: 'ESCALATED',
         ...(businessId ? { businessId } : {}),
@@ -92,6 +98,7 @@ export class ConversationRepository {
       take: options?.limit ?? 50,
       skip: options?.offset ?? 0,
     });
+    return rows.map((r) => this.toDomain(r));
   }
 
   async updateStatus(
@@ -121,5 +128,18 @@ export class ConversationRepository {
       data: { status: 'ACTIVE' },
     });
     return result.count;
+  }
+
+  private toDomain(row: Conversation): ConversationData {
+    return {
+      id: row.id,
+      businessId: row.businessId,
+      channel: toDomainChannel(row.channel),
+      customerIdentifier: row.customerIdentifier,
+      status: row.status,
+      customerName: row.customerName,
+      unreadCount: row.unreadCount,
+      lastMessageAt: row.lastMessageAt,
+    };
   }
 }
