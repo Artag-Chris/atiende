@@ -243,7 +243,7 @@ async function seedCatalog(businessId: string) {
     category: s.category,
   }));
   const productCatalog = products.map((p, i) => ({
-    id: `p001a001-0000-0000-0000-${String(i + 1).padStart(12, '0')}`,
+    id: `20000000-0000-0000-0000-${String(i + 1).padStart(12, '0')}`,
     name: p.name,
     description: p.description,
     price: p.price,
