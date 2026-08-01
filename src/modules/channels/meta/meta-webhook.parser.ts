@@ -92,6 +92,22 @@ export function verifyMetaSignature(
     .digest('hex');
   const received = signature.startsWith('sha256=') ? signature.slice(7) : signature;
 
-  if (expected.length !== received.length) return false;
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+  if (expected.length !== received.length) {
+    console.warn(
+      `[verifyMetaSignature] LENGTH MISMATCH expectedLen=${expected.length} receivedLen=${received.length}`,
+    );
+    return false;
+  }
+  const matches = timingSafeEqual(Buffer.from(expected), Buffer.from(received));
+
+  if (!matches) {
+    // LOG TEMPORAL DE DIAGNÓSTICO — eliminar tras confirmar la causa.
+    // Solo se activa en mismatch para no ensuciar logs en prod.
+    const partial = `${appSecret.slice(0, 4)}...${appSecret.slice(-2)}`;
+    console.warn(
+      `[verifyMetaSignature] MISMATCH (appSecret=${partial}, len=${appSecret.length}) ` +
+        `expected=${expected} received=${received} bodyLen=${rawBody.toString().length}`,
+    );
+  }
+  return matches;
 }
