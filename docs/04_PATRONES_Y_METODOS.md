@@ -4,7 +4,7 @@
 
 ---
 
-## 1. Resumen: qué se hizo
+## 1. Resumen: qué se hizo 
 
 La Fase 2 tuvo un objetivo: **que un mensaje de WhatsApp entrante nunca se pierda ni se duplique**, incluso si la DB, Redis o el proceso fallan a mitad de camino.
 
