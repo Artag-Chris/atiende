@@ -2,6 +2,8 @@ import { Global, Module } from '@nestjs/common';
 import type { ChannelProviderPort } from '@core/ports/channel-provider.port';
 import { CHANNEL_PROVIDERS_TOKEN } from '@core/tokens';
 import { WhatsAppAdapter } from '../whatsapp/whatsapp.adapter';
+import { InstagramAdapter } from '../instagram/instagram.adapter';
+import { MessengerAdapter } from '../messenger/messenger.adapter';
 import { ChannelRouterService } from './channel-router.service';
 
 /**
@@ -19,12 +21,22 @@ import { ChannelRouterService } from './channel-router.service';
     ChannelRouterService,
     {
       provide: CHANNEL_PROVIDERS_TOKEN,
-      useFactory: (whatsapp?: WhatsAppAdapter): ChannelProviderPort[] => {
+      useFactory: (
+        whatsapp?: WhatsAppAdapter,
+        instagram?: InstagramAdapter,
+        messenger?: MessengerAdapter,
+      ): ChannelProviderPort[] => {
         const providers: ChannelProviderPort[] = [];
         if (whatsapp) providers.push(whatsapp);
+        if (instagram) providers.push(instagram);
+        if (messenger) providers.push(messenger);
         return providers;
       },
-      inject: [{ token: WhatsAppAdapter, optional: true }],
+      inject: [
+        { token: WhatsAppAdapter, optional: true },
+        { token: InstagramAdapter, optional: true },
+        { token: MessengerAdapter, optional: true },
+      ],
     },
   ],
   exports: [ChannelRouterService],

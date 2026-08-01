@@ -7,7 +7,9 @@ import type {
   OutboundMessage,
   SendResult,
 } from '@core/ports/channel-provider.port';
+import type { ChannelAccountData } from '@core/ports/channel-account-repository.port';
 import type { Channel } from '@core/domain/types';
+import { CryptoService } from '@modules/infrastructure/encryption/crypto.service';
 
 interface MetaWebhookChange {
   field: string;
@@ -40,12 +42,17 @@ export class WhatsAppAdapter implements ChannelProviderPort {
   private readonly appSecret: string;
 
   private readonly metaGraphApiVersion: string;
+  private readonly graphApiTimeoutMs: number;
   private readonly devPhoneNumberId: string | undefined;
   private readonly devAccessToken: string | undefined;
 
-  constructor(configService: ConfigService) {
+  constructor(
+    configService: ConfigService,
+    private readonly crypto: CryptoService,
+  ) {
     this.appSecret = configService.getOrThrow<string>('META_APP_SECRET');
     this.metaGraphApiVersion = configService.get<string>('META_GRAPH_API_VERSION', 'v21.0');
+    this.graphApiTimeoutMs = configService.get<number>('META_GRAPH_API_TIMEOUT_MS', 15000);
     this.devPhoneNumberId = configService.get<string>('META_DEV_PHONE_NUMBER_ID');
     this.devAccessToken = configService.get<string>('META_DEV_ACCESS_TOKEN');
   }
@@ -95,11 +102,12 @@ export class WhatsAppAdapter implements ChannelProviderPort {
     return messages;
   }
 
-  async send(message: OutboundMessage): Promise<SendResult> {
-    const phoneId = this.devPhoneNumberId;
+  async send(message: OutboundMessage, account?: ChannelAccountData): Promise<SendResult> {
+    const phoneId = account?.accountId ?? this.devPhoneNumberId;
     if (!phoneId) {
       throw new Error('META_DEV_PHONE_NUMBER_ID not configured');
     }
+    const accessToken = await this.resolveToken(account);
     const url = `https://graph.facebook.com/${this.metaGraphApiVersion}/${phoneId}/messages`;
 
     const body = {
@@ -110,13 +118,13 @@ export class WhatsAppAdapter implements ChannelProviderPort {
     };
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), this.graphApiTimeoutMs);
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.devAccessToken}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -141,5 +149,21 @@ export class WhatsAppAdapter implements ChannelProviderPort {
 
   async isHealthy(): Promise<boolean> {
     return true;
+  }
+
+  private async resolveToken(account?: ChannelAccountData): Promise<string> {
+    if (account) {
+      try {
+        return this.crypto.decrypt(account.tokenEncrypted);
+      } catch (error) {
+        this.logger.warn(
+          `Failed to decrypt token for account ${account.id}, falling back to dev token: ${error}`,
+        );
+      }
+    }
+    if (!this.devAccessToken) {
+      throw new Error('META_DEV_ACCESS_TOKEN not configured');
+    }
+    return this.devAccessToken;
   }
 }

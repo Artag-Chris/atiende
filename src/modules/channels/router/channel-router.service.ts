@@ -5,7 +5,8 @@ import type {
   OutboundMessage,
   SendResult,
 } from '@core/ports/channel-provider.port';
-import { CHANNEL_PROVIDERS_TOKEN } from '@core/tokens';
+import type { ChannelAccountRepositoryPort } from '@core/ports/channel-account-repository.port';
+import { CHANNEL_ACCOUNT_REPOSITORY_TOKEN, CHANNEL_PROVIDERS_TOKEN } from '@core/tokens';
 
 /** Canal sin provider registrado. Si el flag de features activó el canal, es un bug de wiring. */
 export class ChannelProviderNotFoundError extends Error {
@@ -32,6 +33,8 @@ export class ChannelRouterService {
     @Optional()
     @Inject(CHANNEL_PROVIDERS_TOKEN)
     private readonly providers: ChannelProviderPort[] | undefined,
+    @Inject(CHANNEL_ACCOUNT_REPOSITORY_TOKEN)
+    private readonly accountRepo: ChannelAccountRepositoryPort,
   ) {
     for (const provider of providers ?? []) {
       this.byChannel.set(provider.name, provider);
@@ -46,8 +49,9 @@ export class ChannelRouterService {
     return provider;
   }
 
-  send(channel: Channel, message: OutboundMessage): Promise<SendResult> {
-    return this.getProvider(channel).send(message);
+  async send(channel: Channel, message: OutboundMessage): Promise<SendResult> {
+    const account = await this.accountRepo.findForBusiness(channel, message.businessId);
+    return this.getProvider(channel).send(message, account ?? undefined);
   }
 
   async isHealthy(channel: Channel): Promise<boolean> {

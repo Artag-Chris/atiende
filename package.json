@@ -31,6 +31,7 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "npx tsx prisma/seed.ts",
+    "prisma:seed:channels": "npx tsx prisma/seed-channel-accounts.ts",
     "prisma:studio": "prisma studio",
     "eval": "npx tsx evals/runner.ts",
     "eval:real": "EVAL_REAL=true npx tsx evals/runner.ts",

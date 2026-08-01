@@ -2,6 +2,9 @@ import type { DynamicModule, Type } from '@nestjs/common';
 import type { Features } from './features';
 import type { LLMProviderName } from './ai.config';
 import { WhatsAppModule } from '../modules/channels/whatsapp/whatsapp.module';
+import { InstagramModule } from '../modules/channels/instagram/instagram.module';
+import { MessengerModule } from '../modules/channels/messenger/messenger.module';
+import { ChannelWebhookModule } from '../modules/channels/webhook/channel-webhook.module';
 import { OpenAIModule } from '../modules/llm/openai/openai.module';
 import { GeminiModule } from '../modules/llm/gemini/gemini.module';
 import { GroqModule } from '../modules/llm/groq/groq.module';
@@ -21,6 +24,7 @@ import { HealthModule } from '../modules/health/health.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
 import { ResponsePolicyModule } from '../modules/response-policy/response-policy.module';
 import { CacheModule } from '../modules/cache/cache.module';
+import { EncryptionModule } from '../modules/infrastructure/encryption/encryption.module';
 
 /**
  * Carga dinámica de módulos según feature flags.
@@ -39,6 +43,8 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   // ----- Infrastructure (siempre habilitada) -----
   modules.push(RedisModule);
   modules.push(RateLimitModule);
+  modules.push(EncryptionModule);
+  modules.push(ChannelWebhookModule);
 
   // ----- Health (siempre habilitada — liveness/readiness para orquestación) -----
   modules.push(HealthModule);
@@ -62,6 +68,8 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Canales -----
   if (features.channels.whatsapp) modules.push(WhatsAppModule);
+  if (features.channels.instagram) modules.push(InstagramModule);
+  if (features.channels.messenger) modules.push(MessengerModule);
   // if (features.channels.webChat)  modules.push(WebChatModule);
   // if (features.channels.telegram) modules.push(TelegramModule);
 

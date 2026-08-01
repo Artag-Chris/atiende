@@ -21,6 +21,8 @@ export interface Features {
     whatsapp: boolean;
     webChat: boolean;
     telegram: boolean;
+    instagram: boolean;
+    messenger: boolean;
   };
   tools: {
     catalog: boolean;
@@ -61,6 +63,8 @@ export function buildFeatures(env: Env): Features {
       whatsapp: env.FEATURE_CHANNEL_WHATSAPP,
       webChat: env.FEATURE_CHANNEL_WEB_CHAT,
       telegram: env.FEATURE_CHANNEL_TELEGRAM,
+      instagram: env.FEATURE_CHANNEL_INSTAGRAM,
+      messenger: env.FEATURE_CHANNEL_MESSENGER,
     },
     tools: {
       catalog: env.FEATURE_TOOL_CATALOG,

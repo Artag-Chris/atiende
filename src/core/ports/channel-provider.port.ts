@@ -1,4 +1,5 @@
 import type { Channel } from '../domain/types';
+import type { ChannelAccountData } from './channel-account-repository.port';
 
 /**
  * Port para canales de mensajería (WhatsApp, Web Chat, Telegram, ...).
@@ -54,8 +55,12 @@ export interface SendResult {
 export interface ChannelProviderPort {
   readonly name: Channel;
 
-  /** Envía un mensaje saliente al cliente final. Hace lookup de credenciales del business internamente. */
-  send(message: OutboundMessage): Promise<SendResult>;
+  /**
+   * Envía un mensaje saliente al cliente final.
+   * @param account cuenta del business en el canal (resuelta por el router).
+   *                Si es undefined, el adapter usa la credencial dev single-tenant.
+   */
+  send(message: OutboundMessage, account?: ChannelAccountData): Promise<SendResult>;
 
   /**
    * Valida la firma HMAC del webhook entrante.

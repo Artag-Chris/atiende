@@ -33,7 +33,13 @@ function createMockRedis(): Redis {
 function createFeatures(overrides?: Partial<Features>): Features {
   return {
     llm: { primary: 'groq', fallback: null },
-    channels: { whatsapp: true, webChat: false, telegram: false },
+    channels: {
+      whatsapp: true,
+      webChat: false,
+      telegram: false,
+      instagram: false,
+      messenger: false,
+    },
     tools: { catalog: true, knowledgeSearch: true, orders: true, info: true, escalation: true },
     embeddings: { provider: 'openai' },
     ai: { promptCaching: true, compaction: false, adaptiveThinking: false, scopeGuard: false },

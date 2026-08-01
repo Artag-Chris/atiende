@@ -1,21 +1,21 @@
 import { Controller } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Channel } from '@core/domain/types';
-import { WhatsAppAdapter } from './whatsapp.adapter';
+import { InstagramAdapter } from './instagram.adapter';
 import { MetaWebhookController } from '../meta/meta-webhook.controller';
 import { ChannelWebhookService } from '../webhook/channel-webhook.service';
 
-@Controller('webhook/whatsapp')
-export class WhatsAppController extends MetaWebhookController {
-  protected readonly channel: Channel = 'whatsapp';
-  protected readonly adapter: WhatsAppAdapter;
+@Controller('webhook/instagram')
+export class InstagramController extends MetaWebhookController {
+  protected readonly channel: Channel = 'instagram';
+  protected readonly adapter: InstagramAdapter;
 
   constructor(
     configService: ConfigService,
-    whatsapp: WhatsAppAdapter,
+    instagram: InstagramAdapter,
     webhookService: ChannelWebhookService,
   ) {
     super(configService, webhookService);
-    this.adapter = whatsapp;
+    this.adapter = instagram;
   }
 }

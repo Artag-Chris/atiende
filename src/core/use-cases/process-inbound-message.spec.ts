@@ -190,14 +190,14 @@ describe('ProcessInboundMessageUseCase', () => {
     ctx = buildUseCase();
   });
 
-  it('processes without persistence when business not found', async () => {
+  it('skips the pipeline when business not found (poison-pill fix: no LLM, no retry loop)', async () => {
     ctx.businessRepo.findByChannelAccount = vi.fn().mockResolvedValue(null);
 
     const result = await ctx.useCase.execute(baseMessage);
 
-    expect(result.responded).toBe(true);
-    expect(result.responseText).toBe('Respuesta del agente');
-    expect(ctx.agent.runTurn).toHaveBeenCalledTimes(1);
+    expect(result.responded).toBe(false);
+    expect(result.skipReason).toBe('no_business');
+    expect(ctx.agent.runTurn).not.toHaveBeenCalled();
     expect(ctx.messageRepo.save).not.toHaveBeenCalled();
     expect(ctx.inboundRepo.save).not.toHaveBeenCalled();
   });
@@ -447,7 +447,7 @@ describe('ProcessInboundMessageUseCase', () => {
 
     const result = await ctx.useCase.execute(baseMessage);
 
-    expect(result.responded).toBe(true);
+    expect(result.responded).toBe(false);
     expect(ctx.unitOfWork.withTransaction).not.toHaveBeenCalled();
     expect(ctx.conversationRepo.getOrCreate).not.toHaveBeenCalled();
     expect(ctx.messageRepo.save).not.toHaveBeenCalled();

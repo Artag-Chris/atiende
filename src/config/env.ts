@@ -107,6 +107,16 @@ export const EnvSchema = z
     META_DEV_ACCESS_TOKEN: z.string().optional(),
 
     // ============================================================
+    // 6b. META INSTAGRAM + MESSENGER (Messenger Platform, mismo host)
+    // ============================================================
+    FEATURE_CHANNEL_INSTAGRAM: boolFromEnv.default(false),
+    FEATURE_CHANNEL_MESSENGER: boolFromEnv.default(false),
+    META_DEV_IG_ID: z.string().optional(),
+    META_DEV_IG_TOKEN: z.string().optional(),
+    META_DEV_PAGE_ID: z.string().optional(),
+    META_DEV_PAGE_TOKEN: z.string().optional(),
+
+    // ============================================================
     // 7. ENCRYPTION
     // ============================================================
     ENCRYPTION_MASTER_KEY: z

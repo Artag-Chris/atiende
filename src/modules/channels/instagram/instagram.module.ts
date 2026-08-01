@@ -4,21 +4,21 @@ import { CoreModule } from '@core/core.module';
 import { PostgresPersistenceModule } from '@modules/persistence/postgres/postgres-persistence.module';
 import { QueueModule } from '@modules/queue/queue.module';
 import { CryptoService } from '@modules/infrastructure/encryption/crypto.service';
-import { WhatsAppController } from './whatsapp.controller';
-import { WhatsAppAdapter } from './whatsapp.adapter';
+import { InstagramController } from './instagram.controller';
+import { InstagramAdapter } from './instagram.adapter';
 
 @Global()
 @Module({
   imports: [CoreModule, PostgresPersistenceModule, QueueModule],
-  controllers: [WhatsAppController],
+  controllers: [InstagramController],
   providers: [
     {
-      provide: WhatsAppAdapter,
+      provide: InstagramAdapter,
       useFactory: (configService: ConfigService, crypto: CryptoService) =>
-        new WhatsAppAdapter(configService, crypto),
+        new InstagramAdapter(configService, crypto),
       inject: [ConfigService, CryptoService],
     },
   ],
-  exports: [WhatsAppAdapter],
+  exports: [InstagramAdapter],
 })
-export class WhatsAppModule {}
+export class InstagramModule {}

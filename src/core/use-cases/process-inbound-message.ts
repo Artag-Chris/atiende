@@ -90,9 +90,14 @@ export class ProcessInboundMessageUseCase {
       message.externalAccountId,
     );
     if (!business) {
+      // Poison-pill: sin business no hay tenant del que responder. Antes esto
+      // corría el LLM y el processor lanzaba "no businessId to send" → el job
+      // se reintentaba hasta agotar (coste de tokens + ruido). Early return:
+      // el job completa sin efecto, sin LLM.
       this.logger.warn(
-        `No business found for channel=${message.channel} account=${message.externalAccountId}. Processing without persistence.`,
+        `No business found for channel=${message.channel} account=${message.externalAccountId}. Skipping message.`,
       );
+      return { responded: false, skipReason: 'no_business' };
     }
 
     if (business && this.responsePolicy) {

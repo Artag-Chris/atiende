@@ -1,230 +1,135 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ConfigService } from '@nestjs/config';
+import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
-import type { Queue } from 'bullmq';
-import type Redis from 'ioredis';
 import { WhatsAppController } from './whatsapp.controller';
 import type { WhatsAppAdapter } from './whatsapp.adapter';
-import type { BusinessRepositoryPort } from '@core/ports/business-repository.port';
-import type { InboundMessageRepositoryPort } from '@core/ports/inbound-message-repository.port';
-
-const externalAccountId = '573001234567';
-const externalMessageId = 'msg-1';
+import type { ChannelWebhookService } from '../webhook/channel-webhook.service';
 
 function createController(overrides?: {
-  redisSet?: ReturnType<typeof vi.fn>;
-  queueAdd?: ReturnType<typeof vi.fn>;
+  verifySignature?: ReturnType<typeof vi.fn>;
   parseWebhook?: ReturnType<typeof vi.fn>;
-  findByChannelAccount?: ReturnType<typeof vi.fn>;
-  inboundSave?: ReturnType<typeof vi.fn>;
+  persistAndEnqueue?: ReturnType<typeof vi.fn>;
+  env?: string;
 }) {
-  const redis = { set: overrides?.redisSet ?? vi.fn() } as unknown as Redis;
-  const queue = { add: overrides?.queueAdd ?? vi.fn() } as unknown as Queue;
-  const whatsapp = {
-    verifyWebhookSignature: vi.fn().mockReturnValue(true),
-    parseInboundWebhook: overrides?.parseWebhook ?? vi.fn(),
-  } as unknown as WhatsAppAdapter;
   const config = {
     getOrThrow: () => 'test-token',
-    get: () => 'development',
+    get: () => overrides?.env ?? 'development',
   } as unknown as ConfigService;
-  const businessRepo = {
-    findByChannelAccount:
-      overrides?.findByChannelAccount ??
-      vi.fn().mockResolvedValue({
-        id: 'biz-1',
-        name: 'Test Business',
-        whatsappPhoneId: externalAccountId,
-        settings: {},
-      }),
-  } as unknown as BusinessRepositoryPort;
-  const inboundRepo = {
-    save:
-      overrides?.inboundSave ??
-      vi.fn().mockResolvedValue({
-        id: 'inb-1',
-        businessId: 'biz-1',
-        externalMessageId,
-        receivedAt: new Date(),
-        processedAt: null,
-      }),
-  } as unknown as InboundMessageRepositoryPort;
+  const whatsapp = {
+    verifyWebhookSignature: overrides?.verifySignature ?? vi.fn().mockReturnValue(true),
+    parseInboundWebhook: overrides?.parseWebhook ?? vi.fn().mockReturnValue([]),
+  } as unknown as WhatsAppAdapter;
+  const webhookService = {
+    persistAndEnqueue:
+      overrides?.persistAndEnqueue ??
+      vi.fn().mockResolvedValue({ persistedCount: 1, enqueuedCount: 1 }),
+  } as unknown as ChannelWebhookService;
 
-  const controller = new WhatsAppController(
-    config,
-    whatsapp,
-    queue,
-    redis,
-    businessRepo,
-    inboundRepo,
-  );
-  return { controller, redis, queue, whatsapp, businessRepo, inboundRepo };
+  const controller = new WhatsAppController(config, whatsapp, webhookService);
+  return { controller, whatsapp, webhookService };
 }
 
+const mockReq = (body: string) => ({ rawBody: Buffer.from(body) }) as RawBodyRequest<Request>;
+
 describe('WhatsAppController', () => {
-  const payload = {
-    object: 'whatsapp_business_account',
-    entry: [
-      {
-        id: '123',
-        changes: [
-          {
-            value: {
-              messages: [
-                {
-                  from: '573001234567',
-                  id: 'msg-1',
-                  text: { body: 'Hello' },
-                  type: 'text',
-                },
-              ],
-              metadata: { phone_number_id: '456' },
-            },
-          },
-        ],
-      },
-    ],
-  };
+  describe('verifyWebhook', () => {
+    it('returns the challenge for a valid subscribe request', () => {
+      const { controller } = createController();
 
-  const mockReq = (body: string) => ({ rawBody: Buffer.from(body) }) as RawBodyRequest<Request>;
-
-  function makeTextMessage() {
-    return [
-      {
-        type: 'text' as const,
-        text: 'Hello',
-        from: externalAccountId,
-        externalMessageId,
-        externalAccountId,
-        rawPayload: {},
-      },
-    ];
-  }
-
-  describe('handleInbound - persist + idempotency', () => {
-    it('persists the inbound message before enqueueing (first webhook)', async () => {
-      const { controller, redis, queue, inboundRepo } = createController({
-        parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
-        redisSet: vi.fn().mockResolvedValue('OK'),
-      });
-
-      await controller.handleInbound(mockReq(JSON.stringify(payload)), '');
-
-      expect(inboundRepo.save).toHaveBeenCalledWith({
-        businessId: 'biz-1',
-        rawPayload: {},
-        externalMessageId,
-      });
-      expect(redis.set).toHaveBeenCalledWith(
-        `idempotency:whatsapp:${externalAccountId}:${externalMessageId}`,
-        '1',
-        'EX',
-        86_400,
-        'NX',
-      );
-      expect(queue.add).toHaveBeenCalledWith(
-        'process',
-        expect.objectContaining({
-          inboundMessageId: 'inb-1',
-          channel: 'whatsapp',
-          businessId: 'biz-1',
-          externalAccountId,
-        }),
-        { jobId: `whatsapp-${externalAccountId}-${externalMessageId}` },
+      expect(controller.verifyWebhook('subscribe', 'test-token', 'challenge-123')).toBe(
+        'challenge-123',
       );
     });
 
-    it('skips enqueue when Redis SET NX returns null (duplicate)', async () => {
-      const { controller, queue, inboundRepo } = createController({
-        parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
-        redisSet: vi.fn().mockResolvedValue(null),
+    it('throws UnauthorizedException on a token mismatch', () => {
+      const { controller } = createController();
+
+      expect(() => controller.verifyWebhook('subscribe', 'wrong', 'challenge-123')).toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  describe('handleInbound', () => {
+    it('delegates persist+enqueue to the shared webhook service with channel whatsapp', async () => {
+      const { controller, whatsapp, webhookService } = createController({
+        parseWebhook: vi
+          .fn()
+          .mockReturnValue([
+            { type: 'text', text: 'Hola', from: '573001234567', externalMessageId: 'm-1' },
+          ]),
       });
+      const payload = { object: 'whatsapp_business_account', entry: [] };
 
-      const result = await controller.handleInbound(mockReq(JSON.stringify(payload)), '');
+      const result = await controller.handleInbound(mockReq(JSON.stringify(payload)), 'sha256=abc');
 
+      expect(whatsapp.verifyWebhookSignature).toHaveBeenCalled();
+      expect(webhookService.persistAndEnqueue).toHaveBeenCalledWith('whatsapp', [
+        expect.objectContaining({ type: 'text', text: 'Hola' }),
+      ]);
       expect(result).toEqual({ status: 'ok' });
-      expect(queue.add).not.toHaveBeenCalled();
-      expect(inboundRepo.save).toHaveBeenCalledTimes(1);
     });
 
-    it('continues when Redis is down (best-effort dedup, DB constraint protects)', async () => {
-      const { controller, queue } = createController({
-        parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
-        redisSet: vi.fn().mockRejectedValue(new Error('redis down')),
+    it('proceeds without signature in dev mode', async () => {
+      const { controller, webhookService } = createController({
+        parseWebhook: vi
+          .fn()
+          .mockReturnValue([
+            { type: 'text', text: 'Hola', from: '573001234567', externalMessageId: 'm-1' },
+          ]),
+        env: 'development',
       });
 
-      const result = await controller.handleInbound(mockReq(JSON.stringify(payload)), '');
+      const result = await controller.handleInbound(mockReq('{}'), '');
 
+      expect(webhookService.persistAndEnqueue).toHaveBeenCalled();
       expect(result).toEqual({ status: 'ok' });
-      expect(queue.add).toHaveBeenCalledTimes(1);
     });
 
-    it('uses jobId namespaced by channel matching externalAccountId-externalMessageId', async () => {
-      const { controller, queue } = createController({
-        parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
-        redisSet: vi.fn().mockResolvedValue('OK'),
-      });
+    it('rejects a missing signature in production', async () => {
+      const { controller } = createController({ env: 'production' });
 
-      await controller.handleInbound(mockReq(JSON.stringify(payload)), '');
-
-      expect(queue.add).toHaveBeenCalledWith(
-        'process',
-        expect.objectContaining({
-          channel: 'whatsapp',
-          businessId: 'biz-1',
-          externalAccountId,
-          externalMessageId,
-        }),
-        { jobId: `whatsapp-${externalAccountId}-${externalMessageId}` },
+      await expect(controller.handleInbound(mockReq('{}'), '')).rejects.toThrow(
+        UnauthorizedException,
       );
     });
 
-    it('enqueues without persisting when the business is not found', async () => {
-      const { controller, queue, inboundRepo } = createController({
-        parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
-        redisSet: vi.fn().mockResolvedValue('OK'),
-        findByChannelAccount: vi.fn().mockResolvedValue(null),
-      });
+    it('rejects an invalid signature', async () => {
+      const { controller } = createController({ verifySignature: vi.fn().mockReturnValue(false) });
 
-      await controller.handleInbound(mockReq(JSON.stringify(payload)), '');
-
-      expect(inboundRepo.save).not.toHaveBeenCalled();
-      expect(queue.add).toHaveBeenCalledTimes(1);
-    });
-
-    it('processes every text message in the payload (multi-message)', async () => {
-      const { controller, queue, inboundRepo } = createController({
-        parseWebhook: vi.fn().mockReturnValue([
-          ...makeTextMessage(),
-          {
-            type: 'text' as const,
-            text: 'Segundo mensaje',
-            from: externalAccountId,
-            externalMessageId: 'msg-2',
-            externalAccountId,
-            rawPayload: {},
-          },
-        ]),
-        redisSet: vi.fn().mockResolvedValue('OK'),
-      });
-
-      await controller.handleInbound(mockReq(JSON.stringify(payload)), '');
-
-      expect(inboundRepo.save).toHaveBeenCalledTimes(2);
-      expect(queue.add).toHaveBeenCalledTimes(2);
-    });
-
-    it('fails with 503 when the inbound message cannot be persisted', async () => {
-      const { controller, queue } = createController({
-        parseWebhook: vi.fn().mockReturnValue(makeTextMessage()),
-        redisSet: vi.fn().mockResolvedValue('OK'),
-        inboundSave: vi.fn().mockRejectedValue(new Error('db down')),
-      });
-
-      await expect(controller.handleInbound(mockReq(JSON.stringify(payload)), '')).rejects.toThrow(
-        'Could not persist inbound message',
+      await expect(controller.handleInbound(mockReq('{}'), 'sha256=bad')).rejects.toThrow(
+        UnauthorizedException,
       );
-      expect(queue.add).not.toHaveBeenCalled();
+    });
+
+    it('rejects invalid JSON', async () => {
+      const { controller } = createController();
+
+      await expect(controller.handleInbound(mockReq('not-json'), 'sha256=abc')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('rejects an empty body', async () => {
+      const { controller } = createController();
+
+      await expect(
+        controller.handleInbound({ rawBody: undefined } as RawBodyRequest<Request>, ''),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('does not delegate when there are no text messages', async () => {
+      const { controller, webhookService } = createController({
+        parseWebhook: vi
+          .fn()
+          .mockReturnValue([{ type: 'unsupported', from: 'x', externalMessageId: 'm-1' }]),
+      });
+
+      const result = await controller.handleInbound(mockReq('{}'), 'sha256=abc');
+
+      expect(webhookService.persistAndEnqueue).not.toHaveBeenCalled();
+      expect(result).toEqual({ status: 'ok' });
     });
   });
 });
