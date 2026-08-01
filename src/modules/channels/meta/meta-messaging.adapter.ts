@@ -40,8 +40,13 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
   constructor(
     protected readonly config: ConfigService,
     protected readonly crypto: CryptoService,
+    /** Env var del App Secret de Meta para ESTE canal (META_APP_SECRET si comparte la app). */
+    appSecretKey: string = 'META_APP_SECRET',
   ) {
-    this.appSecret = config.getOrThrow<string>('META_APP_SECRET');
+    // Secret por canal: si el canal tiene su propia app de Meta, su propio secret.
+    // Fallback al genérico (misma app para todos los canales).
+    this.appSecret =
+      config.get<string>(appSecretKey) ?? config.getOrThrow<string>('META_APP_SECRET');
     this.graphVersion = config.get<string>('META_GRAPH_API_VERSION', 'v21.0');
     this.timeoutMs = config.get<number>('META_GRAPH_API_TIMEOUT_MS', 15000);
   }

@@ -13,4 +13,5 @@ export class MessengerAdapter extends MetaMessagingAdapter {
   protected readonly useMessagingType = true;
   protected readonly devAccountIdKey = 'META_DEV_PAGE_ID';
   protected readonly devTokenKey = 'META_DEV_PAGE_TOKEN';
+  protected readonly appSecretKey = 'META_APP_SECRET';
 }

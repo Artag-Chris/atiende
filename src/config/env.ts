@@ -111,6 +111,13 @@ export const EnvSchema = z
     // ============================================================
     FEATURE_CHANNEL_INSTAGRAM: boolFromEnv.default(false),
     FEATURE_CHANNEL_MESSENGER: boolFromEnv.default(false),
+    /**
+     * App Secret de la app de Meta donde está configurado Instagram.
+     * Solo necesario si Instagram usa UNA APP DISTINTA a la de WhatsApp
+     * (cada app tiene su propio secret). Si comparte la app, se usa
+     * META_APP_SECRET.
+     */
+    META_INSTAGRAM_APP_SECRET: z.string().optional(),
     META_DEV_IG_ID: z.string().optional(),
     META_DEV_IG_TOKEN: z.string().optional(),
     META_DEV_PAGE_ID: z.string().optional(),
