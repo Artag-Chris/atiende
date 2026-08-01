@@ -61,6 +61,7 @@ describe('MessageRepository', () => {
     });
 
     it('returns created=true on first save of an inbound-linked message', async () => {
+      prisma.message.findUnique.mockResolvedValue(null);
       prisma.message.create.mockResolvedValue(mockMessage);
 
       const result = await repo.save({
@@ -71,6 +72,9 @@ describe('MessageRepository', () => {
       });
 
       expect(result).toEqual({ ...mockMessage, created: true });
+      expect(prisma.message.findUnique).toHaveBeenCalledWith({
+        where: { inboundMessageId: 'inbound-1' },
+      });
       expect(prisma.message.create).toHaveBeenCalledWith({
         data: {
           conversation: { connect: { id: 'conv-1' } },
@@ -80,13 +84,9 @@ describe('MessageRepository', () => {
           inboundMessage: { connect: { id: 'inbound-1' } },
         },
       });
-      expect(prisma.message.findUnique).not.toHaveBeenCalled();
     });
 
-    it('returns created=false on a duplicate (job retry) without duplicating', async () => {
-      const conflict = new Error('Unique constraint failed');
-      Object.assign(conflict, { code: 'P2002' });
-      prisma.message.create.mockRejectedValue(conflict);
+    it('returns created=false on a duplicate (job retry) without creating', async () => {
       prisma.message.findUnique.mockResolvedValue(mockMessage);
 
       const result = await repo.save({
@@ -100,22 +100,25 @@ describe('MessageRepository', () => {
       expect(prisma.message.findUnique).toHaveBeenCalledWith({
         where: { inboundMessageId: 'inbound-1' },
       });
+      expect(prisma.message.create).not.toHaveBeenCalled();
     });
 
-    it('rethrows when the duplicate lookup finds nothing', async () => {
-      const conflict = new Error('Unique constraint failed');
-      Object.assign(conflict, { code: 'P2002' });
-      prisma.message.create.mockRejectedValue(conflict);
+    it('creates when the lookup finds nothing (first attempt)', async () => {
       prisma.message.findUnique.mockResolvedValue(null);
+      prisma.message.create.mockResolvedValue(mockMessage);
 
-      await expect(
-        repo.save({
-          conversationId: 'conv-1',
-          role: 'USER',
-          content: [{ type: 'text', text: 'hola' }],
-          inboundMessageId: 'inbound-1',
-        }),
-      ).rejects.toThrow('Unique constraint failed');
+      const result = await repo.save({
+        conversationId: 'conv-1',
+        role: 'USER',
+        content: [{ type: 'text', text: 'hola' }],
+        inboundMessageId: 'inbound-1',
+      });
+
+      expect(result).toEqual({ ...mockMessage, created: true });
+      expect(prisma.message.findUnique).toHaveBeenCalledWith({
+        where: { inboundMessageId: 'inbound-1' },
+      });
+      expect(prisma.message.create).toHaveBeenCalled();
     });
   });
 

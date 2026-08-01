@@ -30,7 +30,9 @@
       "Shell(npx tsx -e \"import 'dotenv/config'; import { loadEnv } from './src/config/env'; const env = loadEnv(); console.log('OK'); console.log('IG secret:', env.META_INSTAGRAM_APP_SECRET);\")",
       "Shell(npx vitest run src/modules/channels/instagram/instagram.adapter.spec.ts src/modules/channels/messenger/messenger.adapter.spec.ts src/modules/channels/meta/meta-webhook.parser.spec.ts 2>&1)",
       "Shell(npx tsc --noEmit 2>&1)",
-      "Shell(Select-String:*)"
+      "Shell(Select-String:*)",
+      "Shell(npx vitest run src/modules/persistence/postgres/message.repository.spec.ts src/core/use-cases/process-inbound-message.spec.ts 2>&1)",
+      "Shell(findstr:*)"
     ],
     "deny": [],
     "defaultMode": "default"

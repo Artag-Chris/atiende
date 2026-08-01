@@ -32,18 +32,17 @@ export class MessageRepository {
       return { ...created, created: true };
     }
 
-    try {
-      const created = await this.prisma.message.create({ data: createData });
-      return { ...created, created: true };
-    } catch (error) {
-      // Idempotente: si el USER message ya se guardó en un intento anterior del
-      // mismo mensaje (job reintentado), no lo duplicamos ni re-contamos.
-      const existing = await this.prisma.message.findUnique({
-        where: { inboundMessageId: data.inboundMessageId },
-      });
-      if (!existing) throw error;
-      return { ...existing, created: false };
-    }
+    // Idempotente: si el USER message ya se guardó en un intento anterior del
+    // mismo mensaje (job reintentado), no lo duplicamos ni re-contamos.
+    // Buscamos PRIMERO para no depender del catch (el create con unique
+    // falla con P2002 y aborta la transacción de Postgres en curso → 25P02).
+    const existing = await this.prisma.message.findUnique({
+      where: { inboundMessageId: data.inboundMessageId },
+    });
+    if (existing) return { ...existing, created: false };
+
+    const created = await this.prisma.message.create({ data: createData });
+    return { ...created, created: true };
   }
 
   async findInboundActivity(
