@@ -154,7 +154,8 @@ export class WhatsAppController {
         continue;
       }
 
-      const jobId = `whatsapp:${m.externalAccountId}-${m.externalMessageId}`;
+      // BullMQ prohíbe ":" en custom jobIds (separador de keys de Redis).
+      const jobId = `whatsapp-${m.externalAccountId}-${m.externalMessageId}`;
       await this.inboundQueue.add(
         'process',
         {

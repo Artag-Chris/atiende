@@ -130,7 +130,7 @@ describe('WhatsAppController', () => {
           businessId: 'biz-1',
           externalAccountId,
         }),
-        { jobId: `whatsapp:${externalAccountId}-${externalMessageId}` },
+        { jobId: `whatsapp-${externalAccountId}-${externalMessageId}` },
       );
     });
 
@@ -175,7 +175,7 @@ describe('WhatsAppController', () => {
           externalAccountId,
           externalMessageId,
         }),
-        { jobId: `whatsapp:${externalAccountId}-${externalMessageId}` },
+        { jobId: `whatsapp-${externalAccountId}-${externalMessageId}` },
       );
     });
 
