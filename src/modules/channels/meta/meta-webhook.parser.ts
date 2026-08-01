@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import type { ParsedInboundMessage } from '@core/ports/channel-provider.port';
 
 /**
@@ -104,9 +104,12 @@ export function verifyMetaSignature(
     // LOG TEMPORAL DE DIAGNÓSTICO — eliminar tras confirmar la causa.
     // Solo se activa en mismatch para no ensuciar logs en prod.
     const partial = `${appSecret.slice(0, 4)}...${appSecret.slice(-2)}`;
+    const bodyStr = typeof rawBody === 'string' ? rawBody : rawBody.toString();
+    const bodySha = createHash('sha256').update(bodyStr).digest('hex');
     console.warn(
       `[verifyMetaSignature] MISMATCH (appSecret=${partial}, len=${appSecret.length}) ` +
-        `expected=${expected} received=${received} bodyLen=${rawBody.toString().length}`,
+        `expected=${expected} received=${received} bodyLen=${bodyStr.length} ` +
+        `bodySha=${bodySha} bodyHead=${JSON.stringify(bodyStr.slice(0, 120))}`,
     );
   }
   return matches;
