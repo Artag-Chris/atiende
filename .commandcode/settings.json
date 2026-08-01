@@ -22,7 +22,9 @@
       "Shell(npx tsc --noEmit prisma/seed.ts --esModuleInterop --skipLibCheck --moduleResolution bundler --module esnext --target es2022 2>&1)",
       "Shell(del:*)",
       "Shell(curl -s \"https://graph.facebook.com/v21.0/debug_token?input_token=EAAcb3lJIKR4BSMnz2qQ5fm2ZCZAoRGgSfEhJFsQWIYEj55WtfUOqQfemCb26GMyYzSl2PLJufZCM1VWZAGXDaQn4i8SbgPhGIcLLJg5JsobmtyjiQAlsjEjl1PLNpTgXufXHaKmRMgejGzavTPAIdeXnQf1GZChZCRVpIIIXkDrmmmzz4QXuskP78LwOboaZAhCYQZDZD&access_token=EAAcb3lJIKR4BSMnz2qQ5fm2ZCZAoRGgSfEhJFsQWIYEj55WtfUOqQfemCb26GMyYzSl2PLJufZCM1VWZAGXDaQn4i8SbgPhGIcLLJg5JsobmtyjiQAlsjEjl1PLNpTgXufXHaKmRMgejGzavTPAIdeXnQf1GZChZCRVpIIIXkDrmmmzz4QXuskP78LwOboaZAhCYQZDZD\")",
-      "Shell(npx vitest run src/modules/channels/meta/meta-webhook.parser.spec.ts 2>&1)"
+      "Shell(npx vitest run src/modules/channels/meta/meta-webhook.parser.spec.ts 2>&1)",
+      "Shell(npx vitest run src/modules/channels/meta/meta-webhook.parser.spec.ts 2 >& 1)",
+      "Shell(npx vitest run src/modules/channels/meta/meta-webhook.parser.spec.ts)"
     ],
     "deny": [],
     "defaultMode": "default"

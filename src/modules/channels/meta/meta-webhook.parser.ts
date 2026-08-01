@@ -109,7 +109,7 @@ export function verifyMetaSignature(
     console.warn(
       `[verifyMetaSignature] MISMATCH (appSecret=${partial}, len=${appSecret.length}) ` +
         `expected=${expected} received=${received} bodyLen=${bodyStr.length} ` +
-        `bodySha=${bodySha} bodyHead=${JSON.stringify(bodyStr.slice(0, 120))}`,
+        `bodySha=${bodySha} body=${JSON.stringify(bodyStr)}`,
     );
   }
   return matches;
