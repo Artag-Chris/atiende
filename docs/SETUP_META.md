@@ -5,7 +5,7 @@
 
 ---
 
-## Prerequisitos
+## Prerequisitos 
 
 - [ ] Cuenta personal de Facebook (la usas para login en developers.facebook.com).
 - [ ] Acceso a un número de teléfono propio para recibir mensajes de prueba (no tiene que ser un número nuevo — Meta deja agregar hasta 5 testers).
