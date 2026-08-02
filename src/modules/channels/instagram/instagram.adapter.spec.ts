@@ -73,10 +73,10 @@ describe('InstagramAdapter.send', () => {
     vi.unstubAllGlobals();
   });
 
-  it('POSTs to graph.facebook.com/{v}/{IG_ID}/messages with the page access token', async () => {
+  it('POSTs to graph.instagram.com/v25.0/me/messages with the IG access token', async () => {
     const adapter = createAdapter({
       META_DEV_IG_ID: '17841400123456789',
-      META_DEV_IG_TOKEN: 'EAAG-dev-ig-token',
+      META_DEV_IG_TOKEN: 'IGAA-dev-ig-token',
     });
 
     const result = await adapter.send({
@@ -87,8 +87,8 @@ describe('InstagramAdapter.send', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
-    expect(url).toBe('https://graph.facebook.com/v21.0/17841400123456789/messages');
-    expect(options.headers.Authorization).toBe('Bearer EAAG-dev-ig-token');
+    expect(url).toBe('https://graph.instagram.com/v25.0/me/messages');
+    expect(options.headers.Authorization).toBe('Bearer IGAA-dev-ig-token');
     expect(JSON.parse(options.body)).toEqual({
       recipient: { id: 'IGSID-12345' },
       message: { text: 'Hola' },

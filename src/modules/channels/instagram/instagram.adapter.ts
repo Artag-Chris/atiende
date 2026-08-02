@@ -5,10 +5,9 @@ import { CryptoService } from '@modules/infrastructure/encryption/crypto.service
 import { MetaMessagingAdapter } from '../meta/meta-messaging.adapter';
 
 /**
- * Instagram DM vía Messenger Platform.
- * El IG_ID del business es el `recipient.id` en los webhooks y el sender del
- * POST /{IG_ID}/messages. El Page Access Token del IG business resuelve ambos
- * (object: instagram en el webhook).
+ * Instagram DM vía la API de Instagram (graph.instagram.com).
+ * El envío usa el endpoint /me/messages con el IG Access Token (IGAA...),
+ * NO la Messenger Platform de graph.facebook.com (que devuelve #3 para IG).
  */
 @Injectable()
 export class InstagramAdapter extends MetaMessagingAdapter {
@@ -20,5 +19,9 @@ export class InstagramAdapter extends MetaMessagingAdapter {
   constructor(configService: ConfigService, crypto: CryptoService) {
     // Instagram puede tener SU PROPIA app de Meta (secret distinto al de WhatsApp).
     super(configService, crypto, 'META_INSTAGRAM_APP_SECRET');
+  }
+
+  protected buildSendEndpoint(_accountId: string): string {
+    return `https://graph.instagram.com/v25.0/me/messages`;
   }
 }

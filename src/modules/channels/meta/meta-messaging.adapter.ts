@@ -65,7 +65,7 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
       throw new Error(`${this.devAccountIdKey} not configured`);
     }
     const accessToken = await this.resolveToken(account);
-    const url = `https://graph.facebook.com/${this.graphVersion}/${accountId}/messages`;
+    const url = this.buildSendEndpoint(accountId);
 
     const body: Record<string, unknown> = {
       recipient: { id: message.to },
@@ -112,6 +112,14 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
 
   async isHealthy(): Promise<boolean> {
     return true;
+  }
+
+  /**
+   * Endpoint de envío por canal. Default: Messenger Platform (Page).
+   * Instagram lo sobreescribe a graph.instagram.com/me/messages.
+   */
+  protected buildSendEndpoint(_accountId: string): string {
+    return `https://graph.facebook.com/${this.graphVersion}/${_accountId}/messages`;
   }
 
   private async resolveToken(account?: ChannelAccountData): Promise<string> {
