@@ -6,6 +6,8 @@ import { SearchCatalogTool } from './search-catalog/search-catalog.tool';
 import { GetProductTool } from './get-product/get-product.tool';
 import { CreateOrderTool } from './create-order/create-order.tool';
 import { SearchKnowledgeTool } from './search-knowledge/search-knowledge.tool';
+import { EstimatePriceTool } from './estimate-price/estimate-price.tool';
+import { GetQuoteTool } from './get-quote/get-quote.tool';
 
 @Global()
 @Module({
@@ -16,6 +18,8 @@ import { SearchKnowledgeTool } from './search-knowledge/search-knowledge.tool';
     GetProductTool,
     CreateOrderTool,
     SearchKnowledgeTool,
+    EstimatePriceTool,
+    GetQuoteTool,
     {
       provide: TOOL_MODULES_TOKEN,
       useFactory: (
@@ -25,7 +29,18 @@ import { SearchKnowledgeTool } from './search-knowledge/search-knowledge.tool';
         getProduct: GetProductTool,
         createOrder: CreateOrderTool,
         searchKnowledge: SearchKnowledgeTool,
-      ) => [info, escalation, search, getProduct, createOrder, searchKnowledge],
+        estimatePrice: EstimatePriceTool,
+        getQuote: GetQuoteTool,
+      ) => [
+        info,
+        escalation,
+        search,
+        getProduct,
+        createOrder,
+        searchKnowledge,
+        estimatePrice,
+        getQuote,
+      ],
       inject: [
         GetBusinessInfoTool,
         EscalateToHumanTool,
@@ -33,6 +48,8 @@ import { SearchKnowledgeTool } from './search-knowledge/search-knowledge.tool';
         GetProductTool,
         CreateOrderTool,
         SearchKnowledgeTool,
+        EstimatePriceTool,
+        GetQuoteTool,
       ],
     },
   ],

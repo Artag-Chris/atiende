@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import type { Job } from 'bullmq';
 import { MaintenanceProcessor } from './maintenance.processor';
 import { ExpireEscalationsUseCase } from '@core/use-cases/expire-escalations';
+import { CloudPricingUpdaterService } from '../pricing/cloud-pricing-updater.service';
+import { ExchangeRateUpdaterService } from '../pricing/exchange-rate-updater.service';
 
 function createConfig() {
   return {
@@ -12,6 +14,15 @@ function createConfig() {
       return undefined;
     }),
   } as unknown as ConfigService;
+}
+
+function createUpdaters() {
+  const cloudPricingUpdater = { run: vi.fn().mockResolvedValue({ updated: 0, failed: [] }) };
+  const exchangeRateUpdater = { run: vi.fn().mockResolvedValue(null) };
+  return {
+    cloudPricingUpdater: cloudPricingUpdater as unknown as CloudPricingUpdaterService,
+    exchangeRateUpdater: exchangeRateUpdater as unknown as ExchangeRateUpdaterService,
+  };
 }
 
 function createJob(name: string): Job {
@@ -27,7 +38,13 @@ describe('MaintenanceProcessor', () => {
     const expireEscalations = {
       execute: vi.fn().mockResolvedValue(2),
     } as unknown as ExpireEscalationsUseCase;
-    const processor = new MaintenanceProcessor(expireEscalations, createConfig());
+    const { cloudPricingUpdater, exchangeRateUpdater } = createUpdaters();
+    const processor = new MaintenanceProcessor(
+      expireEscalations,
+      createConfig(),
+      cloudPricingUpdater,
+      exchangeRateUpdater,
+    );
     const now = Date.now();
     vi.spyOn(Date, 'now').mockReturnValue(now);
 
@@ -38,12 +55,50 @@ describe('MaintenanceProcessor', () => {
     expect(cutoff.getTime()).toBe(now - 72 * 60 * 60 * 1000);
   });
 
+  it('runs the cloud pricing updater job', async () => {
+    const expireEscalations = { execute: vi.fn() } as unknown as ExpireEscalationsUseCase;
+    const { cloudPricingUpdater, exchangeRateUpdater } = createUpdaters();
+    const processor = new MaintenanceProcessor(
+      expireEscalations,
+      createConfig(),
+      cloudPricingUpdater,
+      exchangeRateUpdater,
+    );
+
+    await processor.process(createJob('update-cloud-pricing'));
+
+    expect(cloudPricingUpdater.run).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs the exchange rate updater job', async () => {
+    const expireEscalations = { execute: vi.fn() } as unknown as ExpireEscalationsUseCase;
+    const { cloudPricingUpdater, exchangeRateUpdater } = createUpdaters();
+    const processor = new MaintenanceProcessor(
+      expireEscalations,
+      createConfig(),
+      cloudPricingUpdater,
+      exchangeRateUpdater,
+    );
+
+    await processor.process(createJob('update-exchange-rate'));
+
+    expect(exchangeRateUpdater.run).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores unknown maintenance jobs', async () => {
     const expireEscalations = { execute: vi.fn() } as unknown as ExpireEscalationsUseCase;
-    const processor = new MaintenanceProcessor(expireEscalations, createConfig());
+    const { cloudPricingUpdater, exchangeRateUpdater } = createUpdaters();
+    const processor = new MaintenanceProcessor(
+      expireEscalations,
+      createConfig(),
+      cloudPricingUpdater,
+      exchangeRateUpdater,
+    );
 
     await processor.process(createJob('unknown-job'));
 
     expect(expireEscalations.execute).not.toHaveBeenCalled();
+    expect(cloudPricingUpdater.run).not.toHaveBeenCalled();
+    expect(exchangeRateUpdater.run).not.toHaveBeenCalled();
   });
 });

@@ -7,6 +7,9 @@ import {
   MESSAGE_REPOSITORY_TOKEN,
   INBOUND_MESSAGE_REPOSITORY_TOKEN,
   UNIT_OF_WORK_TOKEN,
+  CLOUD_PRICING_REPOSITORY_TOKEN,
+  EXCHANGE_RATE_REPOSITORY_TOKEN,
+  QUOTE_REPOSITORY_TOKEN,
 } from '@core/tokens';
 import { PrismaModule } from './prisma.module';
 import { BusinessRepository } from './business.repository';
@@ -16,6 +19,9 @@ import { MessageRepository } from './message.repository';
 import { AgentRunRepository } from './agent-run.repository';
 import { InboundMessageRepository } from './inbound-message.repository';
 import { ProductRepository } from './product.repository';
+import { CloudPricingRepository } from './cloud-pricing.repository';
+import { ExchangeRateRepository } from './exchange-rate.repository';
+import { QuoteRepository } from './quote.repository';
 import { PostgresUnitOfWork } from './unit-of-work';
 
 @Global()
@@ -29,6 +35,9 @@ import { PostgresUnitOfWork } from './unit-of-work';
     AgentRunRepository,
     InboundMessageRepository,
     ProductRepository,
+    CloudPricingRepository,
+    ExchangeRateRepository,
+    QuoteRepository,
     PostgresUnitOfWork,
     {
       provide: AGENT_RUN_REPOSITORY_TOKEN,
@@ -58,6 +67,18 @@ import { PostgresUnitOfWork } from './unit-of-work';
       provide: UNIT_OF_WORK_TOKEN,
       useExisting: PostgresUnitOfWork,
     },
+    {
+      provide: CLOUD_PRICING_REPOSITORY_TOKEN,
+      useExisting: CloudPricingRepository,
+    },
+    {
+      provide: EXCHANGE_RATE_REPOSITORY_TOKEN,
+      useExisting: ExchangeRateRepository,
+    },
+    {
+      provide: QUOTE_REPOSITORY_TOKEN,
+      useExisting: QuoteRepository,
+    },
   ],
   exports: [
     BusinessRepository,
@@ -67,6 +88,9 @@ import { PostgresUnitOfWork } from './unit-of-work';
     AgentRunRepository,
     InboundMessageRepository,
     ProductRepository,
+    CloudPricingRepository,
+    ExchangeRateRepository,
+    QuoteRepository,
     AGENT_RUN_REPOSITORY_TOKEN,
     BUSINESS_REPOSITORY_TOKEN,
     CONVERSATION_REPOSITORY_TOKEN,
@@ -74,6 +98,9 @@ import { PostgresUnitOfWork } from './unit-of-work';
     MESSAGE_REPOSITORY_TOKEN,
     INBOUND_MESSAGE_REPOSITORY_TOKEN,
     UNIT_OF_WORK_TOKEN,
+    CLOUD_PRICING_REPOSITORY_TOKEN,
+    EXCHANGE_RATE_REPOSITORY_TOKEN,
+    QUOTE_REPOSITORY_TOKEN,
   ],
 })
 export class PostgresPersistenceModule {}

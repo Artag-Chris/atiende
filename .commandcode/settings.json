@@ -65,7 +65,13 @@
       "Shell(curl -s -X POST \"https://atiende.lumenxlabs.com.co/webhook/messenger\" -H \"Content-Type: application/json\" -d \"{\\\"object\\\":\\\"page\\\",\\\"entry\\\":[{\\\"id\\\":\\\"1163066633567809\\\",\\\"time\\\":1700000000,\\\"messaging\\\":[{\\\"sender\\\":{\\\"id\\\":\\\"27784653871176439\\\"},\\\"recipient\\\":{\\\"id\\\":\\\"1163066633567809\\\"},\\\"timestamp\\\":1700000000,\\\"message\\\":{\\\"mid\\\":\\\"mid.test.0001\\\",\\\"text\\\":\\\"Hola prueba de Messenger\\\"}}]}]}\")",
       "Shell(curl -s \"https://graph.facebook.com/v21.0/1163066633567809/subscribed_apps?access_token=EAAcb3lJIKR4BSBIhsMGRjbQjAe1vJca58Weflmy6lBedHOqIZC1HgO0eBokPXXLdeodPtAcMuhQZALOcAnfw5aSwZAZASArxFtoYmgyZAoSuypfV4rZBNWEdFfB35rUxQ79gvvQPXsuilr1M9kyBmNQCRIygYbfSBPywi6Sr8xkgKEQ9jacFulANtyyLkQkmldb0T326YDYLJhxzw9rLQ9M02mJwZDZD\")",
       "Shell(curl -s -X POST \"https://graph.facebook.com/v21.0/1163066633567809/subscribed_apps?access_token=EAAcb3lJIKR4BSBIhsMGRjbQjAe1vJca58Weflmy6lBedHOqIZC1HgO0eBokPXXLdeodPtAcMuhQZALOcAnfw5aSwZAZASArxFtoYmgyZAoSuypfV4rZBNWEdFfB35rUxQ79gvvQPXsuilr1M9kyBmNQCRIygYbfSBPywi6Sr8xkgKEQ9jacFulANtyyLkQkmldb0T326YDYLJhxzw9rLQ9M02mJwZDZD\")",
-      "Shell(curl -s -X POST \"https://graph.facebook.com/v21.0/1163066633567809/subscribed_apps?subscribed_fields=messages&access_token=EAAcb3lJIKR4BSBIhsMGRjbQjAe1vJca58Weflmy6lBedHOqIZC1HgO0eBokPXXLdeodPtAcMuhQZALOcAnfw5aSwZAZASArxFtoYmgyZAoSuypfV4rZBNWEdFfB35rUxQ79gvvQPXsuilr1M9kyBmNQCRIygYbfSBPywi6Sr8xkgKEQ9jacFulANtyyLkQkmldb0T326YDYLJhxzw9rLQ9M02mJwZDZD\")"
+      "Shell(curl -s -X POST \"https://graph.facebook.com/v21.0/1163066633567809/subscribed_apps?subscribed_fields=messages&access_token=EAAcb3lJIKR4BSBIhsMGRjbQjAe1vJca58Weflmy6lBedHOqIZC1HgO0eBokPXXLdeodPtAcMuhQZALOcAnfw5aSwZAZASArxFtoYmgyZAoSuypfV4rZBNWEdFfB35rUxQ79gvvQPXsuilr1M9kyBmNQCRIygYbfSBPywi6Sr8xkgKEQ9jacFulANtyyLkQkmldb0T326YDYLJhxzw9rLQ9M02mJwZDZD\")",
+      "Shell(npx prisma migrate dev --name add_pricing_models --create-only 2>&1)",
+      "Shell(npx prisma db push 2>&1)",
+      "Shell(npx vitest run src/modules/maintenance/maintenance.processor.spec.ts 2 >& 1)",
+      "Shell(npx vitest run src/modules/maintenance/maintenance.processor.spec.ts src/modules/cache/exact/exact-cache.adapter.spec.ts src/modules/cache/semantic/pgvector-semantic-cache.adapter.spec.ts 2 >& 1)",
+      "Shell(npx vitest run src/modules/tools/estimate-price/estimate-price.tool.spec.ts src/modules/tools/get-quote/get-quote.tool.spec.ts 2>&1)",
+      "Shell(npx prettier --write \"src/modules/tools/estimate-price/estimate-price.tool.spec.ts\" 2>&1)"
     ],
     "deny": [],
     "defaultMode": "default"

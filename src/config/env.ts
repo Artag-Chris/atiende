@@ -230,7 +230,18 @@ export const EnvSchema = z
     FEATURE_TOOL_ORDERS: boolFromEnv.default(true),
     FEATURE_TOOL_INFO: boolFromEnv.default(true),
     FEATURE_TOOL_ESCALATION: boolFromEnv.default(true),
+    FEATURE_TOOL_ESTIMATE_PRICE: boolFromEnv.default(true),
     FEATURE_EMBEDDINGS_PROVIDER: z.enum(['openai', 'voyage']).default('openai'),
+
+    // ============================================================
+    // 17b. PRICING (tool estimate_price + crons)
+    // ============================================================
+    /// Habilita los crons de pricing (semanal de precios cloud + diario del dólar).
+    FEATURE_PRICING_CRONS: boolFromEnv.default(true),
+    /// Tasa USD→COP de emergencia (fallback si ExchangeRate no tiene registro).
+    USD_TO_COP_RATE: z.coerce.number().positive().default(4000),
+    /// URL de la API de tipo de cambio (cron diario). Default open.er-api.com.
+    EXCHANGE_RATE_API_URL: z.string().url().optional(),
 
     // ============================================================
     // 18. OBSERVABILIDAD

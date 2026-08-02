@@ -47,6 +47,9 @@ export const CONVERSATION_REPOSITORY_TOKEN = Symbol('CONVERSATION_REPOSITORY');
 export const MESSAGE_REPOSITORY_TOKEN = Symbol('MESSAGE_REPOSITORY');
 export const INBOUND_MESSAGE_REPOSITORY_TOKEN = Symbol('INBOUND_MESSAGE_REPOSITORY');
 export const UNIT_OF_WORK_TOKEN = Symbol('UNIT_OF_WORK');
+export const CLOUD_PRICING_REPOSITORY_TOKEN = Symbol('CLOUD_PRICING_REPOSITORY');
+export const EXCHANGE_RATE_REPOSITORY_TOKEN = Symbol('EXCHANGE_RATE_REPOSITORY');
+export const QUOTE_REPOSITORY_TOKEN = Symbol('QUOTE_REPOSITORY');
 
 // ----- Infrastructure -------------------------------------------------------
 export const REDIS_CLIENT_TOKEN = Symbol('REDIS_CLIENT');

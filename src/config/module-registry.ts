@@ -19,6 +19,7 @@ import { RateLimitModule } from '../modules/infrastructure/rate-limit/rate-limit
 import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { MaintenanceModule } from '../modules/maintenance/maintenance.module';
+import { PricingModule } from '../modules/pricing/pricing.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { HealthModule } from '../modules/health/health.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
@@ -103,6 +104,9 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Mantenimiento (siempre habilitado — jobs repeatable) -----
   modules.push(MaintenanceModule);
+
+  // ----- Pricing (crons semanal de precios + diario del dólar) -----
+  if (features.tools.estimatePrice) modules.push(PricingModule);
 
   return modules;
 }

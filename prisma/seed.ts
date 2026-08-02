@@ -307,11 +307,57 @@ async function seedUsers(businessId: string) {
   }
 }
 
+async function seedPricing() {
+  // Tasa inicial USD→COP (el cron diario la mantiene actualizada).
+  await prisma.exchangeRate.upsert({
+    where: { pair: 'USD_COP' },
+    update: {},
+    create: { pair: 'USD_COP', rate: Number(process.env.USD_TO_COP_RATE ?? 4000), source: 'seed' },
+  });
+
+  // Costos de infraestructura cloud (precios de referencia en USD/mes; el cron
+  // semanal o un seed posterior los actualiza). La latencia aprox va en metadata.
+  const cloudPrices: Array<{
+    provider: string;
+    service: string;
+    region: string;
+    priceUsd: number;
+    unit: string;
+    metadata: Record<string, unknown>;
+    source: string;
+  }> = [
+    { provider: 'neon', service: 'postgres', region: 'global', priceUsd: 19, unit: 'month', metadata: { freeTier: true }, source: 'seed' },
+    { provider: 'aws_rds', service: 'rds', region: 'sa-east-1', priceUsd: 60, unit: 'month', metadata: { latencyMs: 30 }, source: 'seed' },
+    { provider: 'aws_rds', service: 'rds', region: 'us-east-1', priceUsd: 45, unit: 'month', metadata: { latencyMs: 80 }, source: 'seed' },
+    { provider: 'vercel', service: 'hosting', region: 'global', priceUsd: 20, unit: 'month', metadata: { freeTier: true }, source: 'seed' },
+    { provider: 'render', service: 'hosting', region: 'global', priceUsd: 7, unit: 'month', metadata: { freeTier: true }, source: 'seed' },
+    { provider: 'aws', service: 'hosting', region: 'sa-east-1', priceUsd: 25, unit: 'month', metadata: {}, source: 'seed' },
+  ];
+
+  for (const p of cloudPrices) {
+    await prisma.cloudPricing.upsert({
+      where: { provider_service_region: { provider: p.provider, service: p.service, region: p.region } },
+      update: {},
+      create: {
+        provider: p.provider,
+        service: p.service,
+        region: p.region,
+        priceUsd: p.priceUsd,
+        unit: p.unit,
+        metadata: p.metadata,
+        source: p.source,
+      },
+    });
+  }
+  console.log(`  [ok] pricing: ${cloudPrices.length} costos cloud + tasa USD_COP`);
+}
+
 async function main() {
   console.log('Seeding Atiende (unificado)...');
   const business = await seedBusinessAndAccounts();
   await seedCatalog(business.id);
   await seedUsers(business.id);
+  await seedPricing();
   console.log('Seed completo ✅');
 }
 

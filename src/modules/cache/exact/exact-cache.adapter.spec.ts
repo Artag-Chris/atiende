@@ -40,7 +40,14 @@ function createFeatures(overrides?: Partial<Features>): Features {
       instagram: false,
       messenger: false,
     },
-    tools: { catalog: true, knowledgeSearch: true, orders: true, info: true, escalation: true },
+    tools: {
+      catalog: true,
+      knowledgeSearch: true,
+      orders: true,
+      info: true,
+      escalation: true,
+      estimatePrice: true,
+    },
     embeddings: { provider: 'openai' },
     ai: { promptCaching: true, compaction: false, adaptiveThinking: false, scopeGuard: false },
     cache: {

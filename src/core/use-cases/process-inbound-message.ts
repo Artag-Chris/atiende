@@ -241,7 +241,9 @@ export class ProcessInboundMessageUseCase {
         channel: message.channel,
         historyLength: conversationHistory?.length ?? 0,
         hasPersonalInfo: hasPII,
-        mayInvolveStatefulTool: false,
+        // Pre-lookup: si el mensaje parece pedir cotización/precio, bypassear el
+        // cache (puede haber una cotización distinta por cliente o precios viejos).
+        mayInvolveStatefulTool: this.looksLikeQuoteRequest(message.text),
         businessConfig: {},
       };
 
@@ -318,8 +320,15 @@ export class ProcessInboundMessageUseCase {
         channel: message.channel,
         historyLength: conversationHistory?.length ?? 0,
         hasPersonalInfo: hasPII,
+        // Tools que persisten estado o devuelven datos privados: el turno no
+        // debe cachearse (cotización vieja con precios desactualizados, o
+        // fuga de la cotización de otro cliente).
         mayInvolveStatefulTool: agentResponse.toolCallsMade.some(
-          (t) => t.name === 'create_order' || t.name === 'escalate_to_human',
+          (t) =>
+            t.name === 'create_order' ||
+            t.name === 'escalate_to_human' ||
+            t.name === 'estimate_price' ||
+            t.name === 'get_quote',
         ),
         businessConfig: {},
       };
@@ -511,5 +520,12 @@ export class ProcessInboundMessageUseCase {
     )
       return true;
     return false;
+  }
+
+  /** Heurística: mensaje que pide cotización/precio → bypassear el cache. */
+  private looksLikeQuoteRequest(text: string): boolean {
+    return /cotiza|presupuesto|cu[áa]nto (cuesta|cuestan|vale|valen)|precio|precios|tarifa|quote/i.test(
+      text,
+    );
   }
 }

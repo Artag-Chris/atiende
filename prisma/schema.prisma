@@ -43,6 +43,7 @@ model Business {
   knowledgeDocuments KnowledgeDocument[]
   businessUsers      BusinessUser[]
   channelAccounts    ChannelAccount[]
+  quotes             Quote[]
 
   @@index([archivedAt])
   @@map("businesses")
@@ -216,6 +217,7 @@ model Conversation {
   messages  Message[]
   agentRuns AgentRun[]
   orders    Order[]
+  quotes    Quote[]
 
   @@unique([businessId, channel, customerIdentifier])
   @@index([businessId, status, lastMessageAt])
@@ -528,3 +530,99 @@ model EvalRun {
   @@index([agentVersion, createdAt])
   @@map("eval_runs")
 }
+
+// ============================================================================
+// PRICING (tool estimate_price + crons)
+// ============================================================================
+
+enum QuoteStatus {
+  SENT // cotización entregada al cliente
+  FOLLOWED_UP // se hizo seguimiento
+  ACCEPTED // el cliente aceptó
+  DECLINED // el cliente rechazó
+  EXPIRED // sin respuesta tras X tiempo
+
+  @@map("quote_status")
+}
+
+/// Costo por proveedor/servicio/región de infraestructura cloud.
+/// Lo actualiza el cron semanal (update-cloud-pricing). `region` NO es
+/// nullable (default 'global') para que el unique (provider, service, region)
+/// funcione en Postgres (NULLs son distintos entre sí).
+model CloudPricing {
+  id        String   @id @default(uuid()) @db.Uuid
+  provider  String // 'neon' | 'aws' | 'vercel' | 'render' | ...
+  service   String // 'postgres' | 'rds' | 'hosting' | 'compute' | ...
+  /// 'global' si no aplica región. Ej: 'us-east-1', 'sa-east-1'.
+  region    String   @default("global")
+  /// Precio en USD por unidad (mes, GB, request, etc.).
+  priceUsd  Decimal  @db.Decimal(12, 4)
+  unit      String // 'month' | 'gb' | '1m_requests' | ...
+  /// Metadatos: latencia aprox (ms), free tier, notas.
+  metadata  Json     @default("{}")
+  /// Fuente: 'manual' | 'scraper' | 'api'
+  source    String   @default("manual")
+  /// Timestamp del fetch automático (cron semanal).
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, service, region])
+  @@index([provider, service])
+  @@map("cloud_pricing")
+}
+
+/// Tasa de cambio (USD → COP). La actualiza el cron diario (update-exchange-rate).
+model ExchangeRate {
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Par de monedas: 'USD_COP' (el único que usamos hoy).
+  pair      String   @unique
+  /// Tasa (USD → COP). Ej: 4000.50.
+  rate      Decimal  @db.Decimal(12, 4)
+  /// Fuente: 'open.er-api.com' | 'manual' | ...
+  source    String
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  @@map("exchange_rates")
+}
+
+/// Cotización entregada por el agente. Persistida para consulta posterior del
+/// cliente ("¿cuál fue mi cotización?"), seguimiento (recordatorios/rebajas) y
+/// base de leads potenciales. La identidad es por canal: solo el mismo
+/// (businessId, channel, customerIdentifier) ve sus cotizaciones.
+model Quote {
+  id                 String      @id @default(uuid()) @db.Uuid
+  businessId         String      @map("business_id") @db.Uuid
+  conversationId     String      @map("conversation_id") @db.Uuid
+  /// Identificador del interesado en el canal (teléfono, IGSID, PSID).
+  customerIdentifier String      @map("customer_identifier")
+  channel            Channel
+  /// Servicios cotizados: [{ service, name, priceUsd }]
+  services           Json        @map("services_jsonb")
+  /// Infraestructura cotizada: { database, hosting, region, providers: [...] }
+  infrastructure     Json        @map("infrastructure_jsonb")
+  /// Desglose: { subtotalServices, subtotalInfra, savingsUsd, latencyMs, ... }
+  breakdown          Json        @map("breakdown_jsonb")
+  totalUsd           Decimal     @map("total_usd") @db.Decimal(12, 2)
+  /// Total en la moneda entregada al cliente (ej. "USD 120/mes" o "$510.000 COP").
+  totalDisplay       String      @map("total_display")
+  currency           String // 'USD' | 'COP'
+  /// Tasa USD→COP usada al momento de cotizar (si currency=COP).
+  rateUsed           Decimal?    @map("rate_used") @db.Decimal(12, 4)
+  /// Idempotencia: hash canónico de la petición (único → no duplicados).
+  dedupKey           String      @unique @map("dedup_key")
+  status             QuoteStatus @default(SENT)
+  notes              String?
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /// Identidad por canal: el mismo cliente en el mismo canal ve sus cotizaciones.
+  @@index([businessId, channel, customerIdentifier])
+  @@index([conversationId])
+  @@index([businessId, status, createdAt])
+  @@map("quotes")
+}
+

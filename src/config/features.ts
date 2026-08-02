@@ -30,6 +30,7 @@ export interface Features {
     orders: boolean;
     info: boolean;
     escalation: boolean;
+    estimatePrice: boolean;
   };
   embeddings: {
     provider: 'openai' | 'voyage';
@@ -72,6 +73,7 @@ export function buildFeatures(env: Env): Features {
       orders: env.FEATURE_TOOL_ORDERS,
       info: env.FEATURE_TOOL_INFO,
       escalation: env.FEATURE_TOOL_ESCALATION,
+      estimatePrice: env.FEATURE_TOOL_ESTIMATE_PRICE,
     },
     embeddings: {
       provider: env.FEATURE_EMBEDDINGS_PROVIDER,

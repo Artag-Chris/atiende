@@ -29,6 +29,14 @@ export class ProductRepository {
     });
   }
 
+  /** Busca un servicio (producto) del business por su categoría (los servicios
+   *  LumenX tienen categorías únicas: "Desarrollo", "IA", etc.). */
+  async findByBusinessAndCategory(businessId: string, category: string): Promise<Product | null> {
+    return this.prisma.product.findFirst({
+      where: { businessId, active: true, category },
+    });
+  }
+
   async searchByEmbedding(
     businessId: string,
     embedding: number[],
