@@ -20,8 +20,9 @@ export class ExchangeRateUpdaterService {
     @Inject(EXCHANGE_RATE_REPOSITORY_TOKEN)
     private readonly repo: ExchangeRateRepositoryPort,
   ) {
+    const configured = this.config.get<string>('EXCHANGE_RATE_API_URL');
     this.apiUrl =
-      this.config.get<string>('EXCHANGE_RATE_API_URL') ?? 'https://open.er-api.com/v6/latest/USD';
+      configured && configured.length > 0 ? configured : 'https://open.er-api.com/v6/latest/USD';
   }
 
   async run(): Promise<{ pair: string; rate: number; source: string } | null> {

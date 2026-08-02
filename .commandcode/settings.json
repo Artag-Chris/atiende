@@ -71,7 +71,12 @@
       "Shell(npx vitest run src/modules/maintenance/maintenance.processor.spec.ts 2 >& 1)",
       "Shell(npx vitest run src/modules/maintenance/maintenance.processor.spec.ts src/modules/cache/exact/exact-cache.adapter.spec.ts src/modules/cache/semantic/pgvector-semantic-cache.adapter.spec.ts 2 >& 1)",
       "Shell(npx vitest run src/modules/tools/estimate-price/estimate-price.tool.spec.ts src/modules/tools/get-quote/get-quote.tool.spec.ts 2>&1)",
-      "Shell(npx prettier --write \"src/modules/tools/estimate-price/estimate-price.tool.spec.ts\" 2>&1)"
+      "Shell(npx prettier --write \"src/modules/tools/estimate-price/estimate-price.tool.spec.ts\" 2>&1)",
+      "Shell(npx tsx -e \"import 'dotenv/config'; import { loadEnv } from './src/config/env'; const env = loadEnv(); console.log('OK — EXCHANGE_RATE_API_URL:', JSON.stringify(env.EXCHANGE_RATE_API_URL));\" 2>&1)",
+      "Shell(npx prettier --write \"src/modules/pricing/exchange-rate-updater.service.ts\" 2>&1)",
+      "Shell(curl -s https://open.er-api.com/v6/latest/USD 2 >& 1)",
+      "Shell(curl -s \"https://open.er-api.com/v6/latest/USD\")",
+      "Shell(npx tsx -e \"import 'dotenv/config'; import { loadEnv } from './src/config/env'; const env = loadEnv(); console.log('OK'); console.log('EXCHANGE_RATE_API_URL:', env.EXCHANGE_RATE_API_URL); console.log('USD_TO_COP_RATE:', env.USD_TO_COP_RATE);\" 2>&1)"
     ],
     "deny": [],
     "defaultMode": "default"

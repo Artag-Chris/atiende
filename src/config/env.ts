@@ -240,8 +240,9 @@ export const EnvSchema = z
     FEATURE_PRICING_CRONS: boolFromEnv.default(true),
     /// Tasa USD→COP de emergencia (fallback si ExchangeRate no tiene registro).
     USD_TO_COP_RATE: z.coerce.number().positive().default(4000),
-    /// URL de la API de tipo de cambio (cron diario). Default open.er-api.com.
-    EXCHANGE_RATE_API_URL: z.string().url().optional(),
+    /// URL de la API de tipo de cambio (cron diario). Vacío = usar default
+    /// open.er-api.com. Acepta '' porque el .env la define vacía por defecto.
+    EXCHANGE_RATE_API_URL: z.union([z.string().url(), z.literal('')]).optional(),
 
     // ============================================================
     // 18. OBSERVABILIDAD
