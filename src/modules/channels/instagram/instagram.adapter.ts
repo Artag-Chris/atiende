@@ -15,13 +15,15 @@ export class InstagramAdapter extends MetaMessagingAdapter {
   protected readonly useMessagingType = false;
   protected readonly devAccountIdKey = 'META_DEV_IG_ID';
   protected readonly devTokenKey = 'META_DEV_IG_TOKEN';
+  private readonly igGraphApiVersion: string;
 
   constructor(configService: ConfigService, crypto: CryptoService) {
     // Instagram puede tener SU PROPIA app de Meta (secret distinto al de WhatsApp).
     super(configService, crypto, 'META_INSTAGRAM_APP_SECRET');
+    this.igGraphApiVersion = configService.get<string>('META_INSTAGRAM_GRAPH_API_VERSION', 'v25.0');
   }
 
   protected buildSendEndpoint(_accountId: string): string {
-    return `https://graph.instagram.com/v25.0/me/messages`;
+    return `https://graph.instagram.com/${this.igGraphApiVersion}/me/messages`;
   }
 }

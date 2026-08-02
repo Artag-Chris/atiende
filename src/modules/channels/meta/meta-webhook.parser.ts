@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import type { ParsedInboundMessage } from '@core/ports/channel-provider.port';
 
 /**
@@ -92,25 +92,6 @@ export function verifyMetaSignature(
     .digest('hex');
   const received = signature.startsWith('sha256=') ? signature.slice(7) : signature;
 
-  if (expected.length !== received.length) {
-    console.warn(
-      `[verifyMetaSignature] LENGTH MISMATCH expectedLen=${expected.length} receivedLen=${received.length}`,
-    );
-    return false;
-  }
-  const matches = timingSafeEqual(Buffer.from(expected), Buffer.from(received));
-
-  if (!matches) {
-    // LOG TEMPORAL DE DIAGNÓSTICO — eliminar tras confirmar la causa.
-    // Solo se activa en mismatch para no ensuciar logs en prod.
-    const partial = `${appSecret.slice(0, 4)}...${appSecret.slice(-2)}`;
-    const bodyStr = typeof rawBody === 'string' ? rawBody : rawBody.toString();
-    const bodySha = createHash('sha256').update(bodyStr).digest('hex');
-    console.warn(
-      `[verifyMetaSignature] MISMATCH (appSecret=${partial}, len=${appSecret.length}) ` +
-        `expected=${expected} received=${received} bodyLen=${bodyStr.length} ` +
-        `bodySha=${bodySha} body=${JSON.stringify(bodyStr)}`,
-    );
-  }
-  return matches;
+  if (expected.length !== received.length) return false;
+  return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
 }

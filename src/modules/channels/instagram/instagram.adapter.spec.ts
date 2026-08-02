@@ -10,6 +10,7 @@ function createAdapter(configOverrides?: Record<string, unknown>) {
     getOrThrow: () => 'app-secret',
     get: vi.fn().mockImplementation((key: string) => {
       if (key === 'META_GRAPH_API_VERSION') return 'v21.0';
+      if (key === 'META_INSTAGRAM_GRAPH_API_VERSION') return 'v25.0';
       if (configOverrides?.[key] !== undefined) return configOverrides[key];
       return undefined;
     }),

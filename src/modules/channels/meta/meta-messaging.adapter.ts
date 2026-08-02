@@ -132,6 +132,10 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
         );
       }
     }
+    // El dev token es solo para desarrollo. En producción no se usa nunca.
+    if (this.config.get<string>('NODE_ENV') === 'production') {
+      throw new Error('No valid token for channel account');
+    }
     const dev = this.config.get<string>(this.devTokenKey);
     if (!dev) {
       throw new Error(`${this.devTokenKey} not configured`);

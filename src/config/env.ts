@@ -118,6 +118,11 @@ export const EnvSchema = z
      * META_APP_SECRET.
      */
     META_INSTAGRAM_APP_SECRET: z.string().optional(),
+    /**
+     * Versión de la Graph API de Instagram (graph.instagram.com). Independiente
+     * de META_GRAPH_API_VERSION (host distinto y ciclo de deprecación propio).
+     */
+    META_INSTAGRAM_GRAPH_API_VERSION: z.string().default('v25.0'),
     META_DEV_IG_ID: z.string().optional(),
     META_DEV_IG_TOKEN: z.string().optional(),
     META_DEV_PAGE_ID: z.string().optional(),

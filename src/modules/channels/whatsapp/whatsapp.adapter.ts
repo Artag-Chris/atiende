@@ -47,14 +47,14 @@ export class WhatsAppAdapter implements ChannelProviderPort {
   private readonly devAccessToken: string | undefined;
 
   constructor(
-    configService: ConfigService,
+    private readonly config: ConfigService,
     private readonly crypto: CryptoService,
   ) {
-    this.appSecret = configService.getOrThrow<string>('META_APP_SECRET');
-    this.metaGraphApiVersion = configService.get<string>('META_GRAPH_API_VERSION', 'v21.0');
-    this.graphApiTimeoutMs = configService.get<number>('META_GRAPH_API_TIMEOUT_MS', 15000);
-    this.devPhoneNumberId = configService.get<string>('META_DEV_PHONE_NUMBER_ID');
-    this.devAccessToken = configService.get<string>('META_DEV_ACCESS_TOKEN');
+    this.appSecret = config.getOrThrow<string>('META_APP_SECRET');
+    this.metaGraphApiVersion = config.get<string>('META_GRAPH_API_VERSION', 'v21.0');
+    this.graphApiTimeoutMs = config.get<number>('META_GRAPH_API_TIMEOUT_MS', 15000);
+    this.devPhoneNumberId = config.get<string>('META_DEV_PHONE_NUMBER_ID');
+    this.devAccessToken = config.get<string>('META_DEV_ACCESS_TOKEN');
   }
 
   verifyWebhookSignature(rawBody: string | Buffer, signature: string): boolean {
@@ -160,6 +160,10 @@ export class WhatsAppAdapter implements ChannelProviderPort {
           `Failed to decrypt token for account ${account.id}, falling back to dev token: ${error}`,
         );
       }
+    }
+    // El dev token es solo para desarrollo. En producción no se usa nunca.
+    if (this.config.get<string>('NODE_ENV') === 'production') {
+      throw new Error('No valid token for channel account');
     }
     if (!this.devAccessToken) {
       throw new Error('META_DEV_ACCESS_TOKEN not configured');
