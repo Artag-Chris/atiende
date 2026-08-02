@@ -16,26 +16,141 @@ import { ProductRepository } from '@modules/persistence/postgres/product.reposit
 
 /**
  * Servicios LumenX (slug → categoría en Product). Los precios viven en
- * Product.price (USD) y se actualizan por seed. El input del agente usa slugs.
+ * Product.price (USD) y se actualizan por seed.
  */
 const SERVICE_SLUG_TO_CATEGORY: Record<string, string> = {
-  process_automation: 'Automatización',
-  ai_for_business: 'IA',
   web_development: 'Desarrollo',
+  ai_for_business: 'IA',
+  process_automation: 'Automatización',
   digital_transformation: 'Consultoría',
-  ai_colombia: 'IA',
   cloud_deployment: 'Integraciones',
 };
 
+/** Sinónimos (español/inglés) → slug de servicio. El agente escribe natural. */
+const SERVICE_ALIASES: Record<string, string> = {
+  // web development
+  'desarrollo web': 'web_development',
+  'pagina web': 'web_development',
+  'página web': 'web_development',
+  'sitio web': 'web_development',
+  'sitio estatico': 'web_development',
+  'sitio estático': 'web_development',
+  'web estatica': 'web_development',
+  'web estática': 'web_development',
+  'landing page': 'web_development',
+  web: 'web_development',
+  website: 'web_development',
+  'web development': 'web_development',
+  'web design': 'web_development',
+  ecommerce: 'web_development',
+  'tienda online': 'web_development',
+  // AI
+  'agente de whatsapp': 'ai_for_business',
+  'agente whatsapp': 'ai_for_business',
+  chatbot: 'ai_for_business',
+  'chat bot': 'ai_for_business',
+  'inteligencia artificial': 'ai_for_business',
+  'agente ia': 'ai_for_business',
+  'bot de whatsapp': 'ai_for_business',
+  ia: 'ai_for_business',
+  ai: 'ai_for_business',
+  'ai agent': 'ai_for_business',
+  // automation
+  automatizacion: 'process_automation',
+  automatización: 'process_automation',
+  'automatizacion de procesos': 'process_automation',
+  'automatización de procesos': 'process_automation',
+  automation: 'process_automation',
+  'process automation': 'process_automation',
+  // transformation
+  'transformacion digital': 'digital_transformation',
+  'transformación digital': 'digital_transformation',
+  'digital transformation': 'digital_transformation',
+  consultoria: 'digital_transformation',
+  consultoría: 'digital_transformation',
+  // cloud
+  'cloud deployment': 'cloud_deployment',
+  'deployment cloud': 'cloud_deployment',
+  'subir a la nube': 'cloud_deployment',
+  'servidor privado': 'cloud_deployment',
+  hosting: 'cloud_deployment',
+  'escalamiento cloud': 'cloud_deployment',
+};
+
+/** Sinónimos de proveedores de base de datos → provider usado en CloudPricing. */
+const DATABASE_ALIASES: Record<string, string> = {
+  neon: 'neon',
+  'neon db': 'neon',
+  postgresql: 'neon',
+  postgres: 'neon',
+  'aws rds': 'aws_rds',
+  rds: 'aws_rds',
+  'amazon rds': 'aws_rds',
+  amazon: 'aws_rds',
+  aws: 'aws_rds',
+  'base de datos': 'neon',
+  database: 'neon',
+};
+
+/** Sinónimos de proveedores de hosting → provider usado en CloudPricing. */
+const HOSTING_ALIASES: Record<string, string> = {
+  vercel: 'vercel',
+  render: 'render',
+  aws: 'aws',
+  amazon: 'aws',
+  'amazon web services': 'aws',
+  'self hosted': 'self_hosted',
+  'servidor propio': 'self_hosted',
+  'propio servidor': 'self_hosted',
+  'tu pc': 'self_hosted',
+  'su pc': 'self_hosted',
+  'pc del cliente': 'self_hosted',
+};
+
+/** Regiones: ciudad/país → región usada en CloudPricing. */
+const REGION_ALIASES: Record<string, string> = {
+  pereira: 'sa-east-1',
+  colombia: 'sa-east-1',
+  bogota: 'sa-east-1',
+  bogotá: 'sa-east-1',
+  medellin: 'sa-east-1',
+  medellín: 'sa-east-1',
+  'south america': 'sa-east-1',
+  latam: 'sa-east-1',
+  eeuu: 'us-east-1',
+  usa: 'us-east-1',
+  'united states': 'us-east-1',
+  'us-east': 'us-east-1',
+  norteamerica: 'us-east-1',
+};
+
+/** Normaliza el texto para resolver sinónimos (minúsculas, sin acentos). */
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Resuelve un término libre (servicio, proveedor, región) contra sus sinónimos. */
+function resolve<T>(text: string, aliases: Record<string, T>, fallback: T | null): T | null {
+  const key = normalize(text);
+  if (aliases[key]) return aliases[key];
+  // Coincidencia parcial: "quiero una pagina web" → web_development.
+  for (const [alias, value] of Object.entries(aliases)) {
+    const normAlias = normalize(alias);
+    if (key.includes(normAlias) || normAlias.includes(key)) return value;
+  }
+  return fallback;
+}
+
 const InputSchema = z.object({
+  /** Términos naturales en el idioma del cliente (ej: "desarrollo web", "chatbot"). */
   services: z.array(z.string().min(1)).min(1),
-  infrastructure: z
-    .object({
-      database: z.enum(['neon', 'aws_rds', 'none']).default('none'),
-      hosting: z.enum(['vercel', 'render', 'aws', 'self_hosted', 'none']).default('none'),
-      region: z.string().optional(),
-    })
-    .default({}),
+  /** Proveedores de infraestructura (opcional). Acepta nombres naturales. */
+  database: z.string().optional(),
+  hosting: z.string().optional(),
+  region: z.string().optional(),
   currency: z.enum(['USD', 'COP']).optional(),
 });
 
@@ -62,7 +177,7 @@ export class EstimatePriceTool implements ToolModulePort {
     return {
       name: this.name,
       description:
-        'Calcula una estimación de precio para servicios de LumenX Labs (desarrollo web, agente IA, automatización, transformación digital, cloud deployment) más infraestructura cloud opcional (base de datos Neon o AWS RDS, hosting Vercel/Render/AWS). Devuelve el total (USD o COP según el idioma) y persiste la cotización para que el cliente pueda consultarla después. Úsala cuando el cliente pida precios, presupuestos o cotizaciones.',
+        'Calcula una estimación de precio para servicios de LumenX Labs (desarrollo web, agente IA de WhatsApp, automatización, transformación digital, cloud deployment/servidores) más infraestructura cloud opcional (base de datos Neon o AWS RDS, hosting Vercel/Render/AWS). Recibe los servicios y proveedores en el idioma del cliente (ej. "desarrollo web", "chatbot", "Amazon", "Neon"). Devuelve el total en COP (español) o USD (inglés) y persiste la cotización. Úsala cuando el cliente pida precios, presupuestos o cotizaciones.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -70,20 +185,27 @@ export class EstimatePriceTool implements ToolModulePort {
             type: 'array',
             items: { type: 'string' },
             description:
-              'Slugs de servicios LumenX: process_automation, ai_for_business, web_development, digital_transformation, ai_colombia, cloud_deployment',
+              'Servicios que el cliente pide, en su idioma (ej: ["desarrollo web"], ["agente de whatsapp"], ["automatizacion de procesos"]). Extrae esto del mensaje del cliente.',
           },
-          infrastructure: {
-            type: 'object',
-            properties: {
-              database: { type: 'string', enum: ['neon', 'aws_rds', 'none'] },
-              hosting: { type: 'string', enum: ['vercel', 'render', 'aws', 'self_hosted', 'none'] },
-              region: { type: 'string' },
-            },
+          database: {
+            type: 'string',
+            description:
+              'Proveedor de base de datos mencionado (ej: "Neon", "AWS", "Amazon", "postgres"). Opcional.',
+          },
+          hosting: {
+            type: 'string',
+            description:
+              'Proveedor de hosting mencionado (ej: "Vercel", "Render", "AWS", "servidor propio"). Opcional.',
+          },
+          region: {
+            type: 'string',
+            description:
+              'Región/ciudad si el cliente la menciona (ej: "Pereira", "Colombia", "EEUU"). Opcional.',
           },
           currency: {
             type: 'string',
             enum: ['USD', 'COP'],
-            description: 'Auto: USD en inglés, COP en español',
+            description: 'Auto: USD si el cliente escribe en inglés, COP si en español',
           },
         },
         required: ['services'],
@@ -97,23 +219,29 @@ export class EstimatePriceTool implements ToolModulePort {
     const parsed = InputSchema.safeParse(input);
     if (!parsed.success) {
       return {
-        output: `Invalid input: ${parsed.error.issues.map((i) => i.message).join(', ')}`,
+        output:
+          'No pude interpretar la solicitud de cotización. Por favor pide los servicios que necesita (ej: desarrollo web, agente de WhatsApp, automatización).',
         isError: true,
       };
     }
-    const { services, infrastructure, currency } = parsed.data;
+    const { services, database, hosting, region, currency } = parsed.data;
 
     try {
-      // 1. Servicios LumenX → Product por categoría.
+      // 1. Resolver servicios: términos naturales → slugs → Product por categoría.
+      const slugs = services
+        .map((s) => resolve(s, SERVICE_ALIASES, null))
+        .filter(Boolean) as string[];
+      if (slugs.length === 0) {
+        return {
+          output:
+            'No reconocí los servicios solicitados. Los servicios disponibles son: desarrollo web, agente IA de WhatsApp, automatización de procesos, transformación digital y cloud deployment. ¿Cuál te interesa?',
+          isError: true,
+        };
+      }
+
       const serviceItems: Array<{ slug: string; name: string; priceUsd: number }> = [];
-      for (const slug of services) {
+      for (const slug of slugs) {
         const category = SERVICE_SLUG_TO_CATEGORY[slug];
-        if (!category) {
-          return {
-            output: `Servicio desconocido: ${slug}. Válidos: ${Object.keys(SERVICE_SLUG_TO_CATEGORY).join(', ')}`,
-            isError: true,
-          };
-        }
         const product = await this.productRepo.findByBusinessAndCategory(ctx.businessId, category);
         if (!product) {
           this.logger.warn(
@@ -130,7 +258,7 @@ export class EstimatePriceTool implements ToolModulePort {
         };
       }
 
-      // 2. Infraestructura cloud → CloudPricing (por proveedor/servicio/región).
+      // 2. Infraestructura: resolver proveedores naturales → CloudPricing.
       const infraProviders: Array<{
         provider: string;
         service: string;
@@ -138,39 +266,48 @@ export class EstimatePriceTool implements ToolModulePort {
         unit: string;
         latencyMs: number | null;
       }> = [];
-      const region = infrastructure.region ?? 'global';
-      if (infrastructure.database !== 'none') {
-        const dbProvider = infrastructure.database;
-        const dbService = dbProvider === 'neon' ? 'postgres' : 'rds';
-        const price = await this.cloudPricingRepo.findByProviderService(
-          dbProvider,
-          dbService,
-          region,
-        );
-        if (price) {
-          infraProviders.push({
-            provider: dbProvider,
-            service: dbService,
-            priceUsd: price.priceUsd,
-            unit: price.unit,
-            latencyMs: (price.metadata.latencyMs as number | undefined) ?? null,
-          });
+      const resolvedRegion = region
+        ? (resolve(region, REGION_ALIASES, null) ?? 'global')
+        : 'global';
+
+      if (database) {
+        const dbProvider = resolve(database, DATABASE_ALIASES, null);
+        if (dbProvider && dbProvider !== 'none') {
+          const dbService = dbProvider === 'neon' ? 'postgres' : 'rds';
+          const price = await this.cloudPricingRepo.findByProviderService(
+            dbProvider,
+            dbService,
+            resolvedRegion,
+          );
+          if (price) {
+            infraProviders.push({
+              provider: dbProvider,
+              service: dbService,
+              priceUsd: price.priceUsd,
+              unit: price.unit,
+              latencyMs: (price.metadata.latencyMs as number | undefined) ?? null,
+            });
+          }
         }
       }
-      if (infrastructure.hosting !== 'none') {
-        const hostingPrice = await this.cloudPricingRepo.findByProviderService(
-          infrastructure.hosting,
-          'hosting',
-          region,
-        );
-        if (hostingPrice) {
-          infraProviders.push({
-            provider: infrastructure.hosting,
-            service: 'hosting',
-            priceUsd: hostingPrice.priceUsd,
-            unit: hostingPrice.unit,
-            latencyMs: (hostingPrice.metadata.latencyMs as number | undefined) ?? null,
-          });
+
+      if (hosting) {
+        const hostingProvider = resolve(hosting, HOSTING_ALIASES, null);
+        if (hostingProvider && hostingProvider !== 'self_hosted') {
+          const price = await this.cloudPricingRepo.findByProviderService(
+            hostingProvider,
+            'hosting',
+            resolvedRegion,
+          );
+          if (price) {
+            infraProviders.push({
+              provider: hostingProvider,
+              service: 'hosting',
+              priceUsd: price.priceUsd,
+              unit: price.unit,
+              latencyMs: (price.metadata.latencyMs as number | undefined) ?? null,
+            });
+          }
         }
       }
 
@@ -194,14 +331,26 @@ export class EstimatePriceTool implements ToolModulePort {
       }
 
       // 5. Persistir (idempotente por dedupKey canónico).
-      const dedupKey = this.buildDedupKey(ctx, services, infrastructure, currency);
+      const dedupKey = this.buildDedupKey(
+        ctx,
+        slugs,
+        database ?? '',
+        hosting ?? '',
+        resolvedRegion,
+        currency,
+      );
       const quote = await this.quoteRepo.save({
         businessId: ctx.businessId,
         conversationId: ctx.conversationId,
         customerIdentifier: ctx.customerPhone,
         channel: ctx.channel,
         services: serviceItems as unknown as Array<Record<string, unknown>>,
-        infrastructure: { ...infrastructure, providers: infraProviders } as Record<string, unknown>,
+        infrastructure: {
+          database: database ?? undefined,
+          hosting: hosting ?? undefined,
+          region: resolvedRegion,
+          providers: infraProviders,
+        } as Record<string, unknown>,
         breakdown: {
           subtotalServices,
           subtotalInfra,
@@ -242,11 +391,13 @@ export class EstimatePriceTool implements ToolModulePort {
     }
   }
 
-  /** Hash canónico: ordena los servicios e infra para que el orden no duplique. */
+  /** Hash canónico: ordena los servicios para que el orden no duplique. */
   private buildDedupKey(
     ctx: TurnContext,
     services: string[],
-    infra: { database: string; hosting: string; region?: string },
+    database: string,
+    hosting: string,
+    region: string,
     currency?: 'USD' | 'COP',
   ): string {
     const canonical = JSON.stringify({
@@ -254,7 +405,7 @@ export class EstimatePriceTool implements ToolModulePort {
       customer: ctx.customerPhone,
       conversation: ctx.conversationId,
       services: [...services].sort(),
-      infrastructure: { ...infra, region: infra.region ?? 'global' },
+      infrastructure: { database, hosting, region },
       currency: currency ?? 'COP',
     });
     return createHash('sha256').update(canonical).digest('hex');

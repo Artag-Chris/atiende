@@ -97,7 +97,7 @@ describe('EstimatePriceTool', () => {
 
   it('calculates a quote in COP by default and persists a Quote', async () => {
     const result = await tool.execute(
-      { services: ['ai_for_business'], infrastructure: { database: 'neon' } },
+      { services: ['desarrollo web'], database: 'neon' },
       makeCtx(),
     );
 
@@ -106,25 +106,30 @@ describe('EstimatePriceTool', () => {
     expect(parsed.total).toMatch(/COP$/);
     expect(parsed.currency).toBe('COP');
     expect(parsed.quoteId).toBe('quote-1');
-    expect(parsed.totalUsd).toBe(319); // 300 (IA) + 19 (neon postgres)
+    expect(parsed.totalUsd).toBe(269); // 250 (Desarrollo) + 19 (neon postgres)
   });
 
   it('uses USD when currency is USD', async () => {
-    const result = await tool.execute(
-      { services: ['web_development'], currency: 'USD' },
-      makeCtx(),
-    );
+    const result = await tool.execute({ services: ['pagina web'], currency: 'USD' }, makeCtx());
 
     const parsed = JSON.parse(result.output);
     expect(parsed.currency).toBe('USD');
     expect(parsed.total).toBe('$250.00 USD');
   });
 
+  it('resolves natural language service terms (chatbot → IA)', async () => {
+    const result = await tool.execute({ services: ['chatbot'] }, makeCtx());
+
+    const parsed = JSON.parse(result.output);
+    expect(result.isError).toBeUndefined();
+    expect(parsed.totalUsd).toBe(300); // IA
+  });
+
   it('falls back to the env rate when ExchangeRate has no record', async () => {
     const toolNoRate = createTool({
       exchangeRate: { findByPair: vi.fn().mockResolvedValue(null) },
     });
-    const result = await toolNoRate.execute({ services: ['ai_for_business'] }, makeCtx());
+    const result = await toolNoRate.execute({ services: ['chatbot'] }, makeCtx());
     const parsed = JSON.parse(result.output);
     // totalUsd 300 * 4000 (env fallback) = 1.200.000 COP
     expect(parsed.currency).toBe('COP');
@@ -135,18 +140,18 @@ describe('EstimatePriceTool', () => {
     const save = vi.fn().mockResolvedValue({ id: 'quote-1', dedupKey: 'same' });
     const toolDedup = createTool({ quote: { save } });
 
-    await toolDedup.execute({ services: ['ai_for_business'] }, makeCtx());
-    await toolDedup.execute({ services: ['ai_for_business'] }, makeCtx());
+    await toolDedup.execute({ services: ['chatbot'] }, makeCtx());
+    await toolDedup.execute({ services: ['chatbot'] }, makeCtx());
 
     // La dedupKey debe ser igual para peticiones idénticas (el repo no duplica).
     const keys = save.mock.calls.map((c) => (c[0] as { dedupKey: string }).dedupKey);
     expect(keys[0]).toBe(keys[1]);
   });
 
-  it('rejects an unknown service slug', async () => {
+  it('gives a friendly message when no service is recognized', async () => {
     const result = await tool.execute({ services: ['unknown_service'] }, makeCtx());
     expect(result.isError).toBe(true);
-    expect(result.output).toContain('Servicio desconocido');
+    expect(result.output).toContain('No reconocí los servicios solicitados');
   });
 
   it('is marked as stateful (mutatesState=true)', () => {
