@@ -52,7 +52,9 @@
       "Shell(curl -s -X POST \"https://graph.instagram.com/v25.0/me/messages\" -H \"Authorization: Bearer IGAAXIzMAaFppBZAGFqdW1VbzBya05Dcm1DaU5oR0NQLXl4TlNVYW1yVURqNlhtVVJNM3Y0VENrZAWFlM0otc18yamVkOHZAXVnNxXy1TNWxUVkRKWWNpM0NXWFR1MXpuc2R6NTUyVmM1OTJIZA3ZAwb05EOTFqOXZA4eGV1Y0NXQ3l5UQZDZD\" -H \"Content-Type: application/json\" -d \"{\\\"message\\\":{\\\"text\\\":\\\"Hello World\\\"},\\\"recipient\\\":{\\\"id\\\":\\\"\\\"}}\")",
       "Shell(curl -s -X POST \"https://graph.instagram.com/v25.0/me/messages\" -H \"Authorization: Bearer IGAAXIzMAaFppBZAGFqdW1VbzBya05Dcm1DaU5oR0NQLXl4TlNVYW1yVURqNlhtVVJNM3Y0VENrZAWFlM0otc18yamVkOHZAXVnNxXy1TNWxUVkRKWWNpM0NXWFR1MXpuc2R6NTUyVmM1OTJIZA3ZAwb05EOTFqOXZA4eGV1Y0NXQ3l5UQZDZD\" -H \"Content-Type: application/json\" -d \"{\\\"message\\\":{\\\"text\\\":\\\"Hello World\\\"},\\\"recipient\\\":{\\\"id\\\":\\\"27784653871176439\\\"}}\")",
       "Shell(npx vitest run src/modules/channels/instagram/instagram.adapter.spec.ts src/modules/channels/messenger/messenger.adapter.spec.ts 2>&1)",
-      "Shell(npx vitest run src/modules/channels/instagram/instagram.adapter.spec.ts src/modules/channels/messenger/messenger.adapter.spec.ts src/modules/channels/whatsapp/whatsapp.adapter.spec.ts src/modules/channels/meta/meta-webhook.parser.spec.ts src/config/env.spec.ts 2>&1)"
+      "Shell(npx vitest run src/modules/channels/instagram/instagram.adapter.spec.ts src/modules/channels/messenger/messenger.adapter.spec.ts src/modules/channels/whatsapp/whatsapp.adapter.spec.ts src/modules/channels/meta/meta-webhook.parser.spec.ts src/config/env.spec.ts 2>&1)",
+      "Shell(git:*)",
+      "Shell(npx vitest run src/modules/dashboard/dashboard.controller.spec.ts 2>&1)"
     ],
     "deny": [],
     "defaultMode": "default"

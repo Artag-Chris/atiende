@@ -118,6 +118,7 @@ export class DashboardController {
         const lastMessages = await this.messageRepo.findRecent(conversation.id, 1);
         return {
           id: conversation.id,
+          channel: conversation.channel,
           customerIdentifier: conversation.customerIdentifier,
           customerName: conversation.customerName ?? null,
           status: conversation.status,

@@ -151,6 +151,7 @@ describe('DashboardController', () => {
       expect(result.data[0]).toEqual(
         expect.objectContaining({
           id: 'conv-1',
+          channel: 'WHATSAPP',
           customerName: 'Ana',
           unreadCount: 3,
           lastMessageText: 'hola',
