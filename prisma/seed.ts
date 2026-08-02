@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { createCipheriv, randomBytes } from 'crypto';
 
@@ -323,7 +324,7 @@ async function seedPricing() {
     region: string;
     priceUsd: number;
     unit: string;
-    metadata: Record<string, unknown>;
+    metadata: Prisma.InputJsonValue;
     source: string;
   }> = [
     { provider: 'neon', service: 'postgres', region: 'global', priceUsd: 19, unit: 'month', metadata: { freeTier: true }, source: 'seed' },
