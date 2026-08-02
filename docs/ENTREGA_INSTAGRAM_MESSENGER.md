@@ -56,20 +56,23 @@ GET /{page-id}?fields=instagram_business_account
 ```
 → en la respuesta, el campo `id` es el **IGID**.
 
-### 2.5 Page Access Token (PAT)
+### 2.5 Tokens (uno por canal — ¡no son el mismo!)
 
-> El **mismo token sirve para Instagram y Messenger** (ambos son de la Página).
+> ⚠️ **Importante:** Instagram y Messenger usan tokens DISTINTOS.
+> - **Messenger** → Page Access Token (`EAAG...`/`EAA...`) de `graph.facebook.com`.
+> - **Instagram** → IG Access Token (`IGAA...`) de `graph.instagram.com`
+>   (se genera en la app de Instagram: *Instagram → API Setup → Generar token*,
+>   junto a la cuenta de IG conectada).
 
-**Opción A (recomendada — permanente):**
-1. *Meta Business Settings → Users → System Users*.
-2. Crea/elige un system user → asígnale la Página con **Full control**.
-3. *Generate New Token* → tu app → *Expiration: Never*.
-4. Marca scopes: `pages_show_list`, `pages_messaging`, `pages_manage_metadata`,
-   `instagram_basic`, `instagram_manage_messages`.
-5. **Copia el token YA** (Meta no lo muestra de nuevo).
+**Para Messenger (Page Access Token):**
+1. *Meta Business Settings → Users → System Users* → asígnale la Página con **Full control**.
+2. *Generate New Token* → scopes: `pages_messaging`, `pages_show_list`, `pages_manage_metadata`.
+3. Copia el token (`EAAG...`).
 
-**Opción B (rápida, expira):** *Graph API Explorer* → `GET /me/accounts` → copia el
-`access_token` de la Página (válido ~60 días si el user token es long-lived).
+**Para Instagram (IG Access Token):**
+1. En la app de Meta **LumenXlabs-IG** (la del secret `8c50a8...`): *Instagram → API Setup*.
+2. En la fila de la cuenta `lumenxlabs` → **Generar token** (o el flujo de la API de Instagram).
+3. Copia el token (`IGAA...`).
 
 ---
 
@@ -77,7 +80,8 @@ GET /{page-id}?fields=instagram_business_account
 
 - [ ] **Page ID** (número de la Página)
 - [ ] **IGID** (IG Business ID, `1784...`)
-- [ ] **Page Access Token** (PAT, token de la Página)
+- [ ] **IG Access Token** (`IGAA...`) para Instagram (graph.instagram.com)
+- [ ] **Page Access Token** (`EAAG...`) para Messenger
 - [ ] Confirmación de que **`META_APP_SECRET`** sigue siendo el mismo del `.env`
 - [ ] Confirmación de que **`META_WEBHOOK_VERIFY_TOKEN`** es el mismo
 - [ ] (Opcional) **IG_ID y Page ID de prueba** si quieres dev single-tenant

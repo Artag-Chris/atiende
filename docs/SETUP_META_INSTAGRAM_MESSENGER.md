@@ -111,9 +111,9 @@ FEATURE_CHANNEL_MESSENGER=true
 
 # Dev single-tenant (solo para probar sin seed de DB)
 META_DEV_IG_ID=178414...            # IGID de la cuenta de prueba
-META_DEV_IG_TOKEN=EAAG...           # PAT de la Página
+META_DEV_IG_TOKEN=IGAA...           # IG Access Token (graph.instagram.com, NO EAAG)
 META_DEV_PAGE_ID=10987654321        # Page ID de la Página de prueba
-META_DEV_PAGE_TOKEN=EAAG...         # PAT de la Página (mismo valor que IG_TOKEN)
+META_DEV_PAGE_TOKEN=EAAG...         # PAT de la Página (para Messenger)
 ```
 
 En **producción multi-tenant**, las credenciales por business se guardan en

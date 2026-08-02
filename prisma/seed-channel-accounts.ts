@@ -8,8 +8,11 @@
  *   npx tsx prisma/seed-channel-accounts.ts <channel> <accountId> <token> [businessId] [--primary]
  *
  * Ejemplos:
- *   npx tsx prisma/seed-channel-accounts.ts instagram 17841400123456789 EAAG-xxx --primary
+ *   npx tsx prisma/seed-channel-accounts.ts instagram 17841400123456789 IGAA-xxx --primary
  *   npx tsx prisma/seed-channel-accounts.ts messenger 10987654321 EAAG-yyy
+ *
+ * Nota: Instagram envía por graph.instagram.com con un IG Access Token (IGAA...),
+ * NO por la Messenger Platform. Messenger usa el Page Access Token (EAAG...).
  *
  * Si businessId se omite, se usa el primer business de la tabla.
  * `--primary` marca la cuenta como primaria (única por canal del business).
