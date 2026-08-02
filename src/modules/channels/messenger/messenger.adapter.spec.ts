@@ -65,7 +65,7 @@ describe('MessengerAdapter.send', () => {
   it('POSTs to graph.facebook.com/{v}/{PAGE_ID}/messages with messaging_type RESPONSE', async () => {
     const adapter = createAdapter({
       META_DEV_PAGE_ID: '10987654321',
-      META_DEV_PAGE_TOKEN: 'EAAG-dev-page-token',
+      META_MESSENGER_PAGE_TOKEN: 'EAAG-dev-page-token',
     });
 
     const result = await adapter.send({

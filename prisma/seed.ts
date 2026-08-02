@@ -109,7 +109,7 @@ ESTILO DE RESPUESTA:
     {
       channel: 'MESSENGER',
       accountId: process.env.META_DEV_PAGE_ID,
-      token: process.env.META_DEV_PAGE_TOKEN,
+      token: process.env.META_MESSENGER_PAGE_TOKEN ?? process.env.META_DEV_PAGE_TOKEN,
       isPrimary: true,
     },
   ];

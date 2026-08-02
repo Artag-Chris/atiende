@@ -127,7 +127,12 @@ export const EnvSchema = z
     META_DEV_IG_TOKEN: z.string().optional(),
     META_DEV_PAGE_ID: z.string().optional(),
     META_DEV_PAGE_TOKEN: z.string().optional(),
-
+    /**
+     * Page Access Token para Messenger (graph.facebook.com). Debe ser un token
+     * tipo PAGE (no SYSTEM_USER) de la Página del business. Si no se define,
+     * se usa META_DEV_PAGE_TOKEN.
+     */
+    META_MESSENGER_PAGE_TOKEN: z.string().optional(),
     // ============================================================
     // 7. ENCRYPTION
     // ============================================================

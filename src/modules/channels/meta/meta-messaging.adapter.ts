@@ -136,7 +136,8 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
     if (this.config.get<string>('NODE_ENV') === 'production') {
       throw new Error('No valid token for channel account');
     }
-    const dev = this.config.get<string>(this.devTokenKey);
+    const dev =
+      this.config.get<string>(this.devTokenKey) ?? this.config.get<string>('META_DEV_PAGE_TOKEN');
     if (!dev) {
       throw new Error(`${this.devTokenKey} not configured`);
     }
