@@ -90,7 +90,18 @@ export abstract class MetaWebhookController {
 
     const textMessages = messages.filter((m) => m.type === 'text');
     if (textMessages.length === 0) {
-      this.logger.debug('No text messages to process');
+      // El botón "Enviar a mi servidor" de la consola de Meta manda un payload
+      // con shape { sample: {...} } (sin entry[].messaging[]) — no es un
+      // mensaje real, no debe procesarse ni responder.
+      const isMetaSample = typeof parsed === 'object' && parsed !== null && 'sample' in parsed;
+      if (isMetaSample) {
+        this.logger.log('Meta webhook sample received (ignored)');
+      } else {
+        // Diagnóstico: muestra el shape del payload para debuggear por qué no
+        // se parseó ningún mensaje (sin exponer el body completo).
+        const shape = describePayloadShape(parsed);
+        this.logger.warn(`No text messages to process — payload shape: ${shape}`);
+      }
       return { status: 'ok' };
     }
 
@@ -104,4 +115,22 @@ export abstract class MetaWebhookController {
     );
     return { status: 'ok' };
   }
+}
+
+/**
+ * Describe de forma compacta el shape de un payload de webhook (claves raíz +
+ * longitudes) para debuggear sin exponer el contenido. Ej: `{object, entry[1]}`.
+ */
+function describePayloadShape(payload: unknown): string {
+  if (Array.isArray(payload)) return `array[${payload.length}]`;
+  if (typeof payload !== 'object' || payload === null) return typeof payload;
+
+  const keys = Object.keys(payload);
+  const parts = keys.map((k) => {
+    const v = (payload as Record<string, unknown>)[k];
+    if (Array.isArray(v)) return `${k}[${v.length}]`;
+    if (typeof v === 'object' && v !== null) return `${k}{${Object.keys(v).join(',')}}`;
+    return `${k}:${typeof v}`;
+  });
+  return `{${parts.join(', ')}}`;
 }
