@@ -95,3 +95,21 @@ export function verifyMetaSignature(
   if (expected.length !== received.length) return false;
   return timingSafeEqual(Buffer.from(expected), Buffer.from(received));
 }
+
+/**
+ * Describe de forma compacta el shape de un payload de webhook (claves raíz +
+ * longitudes) para debuggear sin exponer el contenido. Ej: `{object, entry[1]}`.
+ */
+export function describePayloadShape(payload: unknown): string {
+  if (Array.isArray(payload)) return `array[${payload.length}]`;
+  if (typeof payload !== 'object' || payload === null) return typeof payload;
+
+  const keys = Object.keys(payload);
+  const parts = keys.map((k) => {
+    const v = (payload as Record<string, unknown>)[k];
+    if (Array.isArray(v)) return `${k}[${v.length}]`;
+    if (typeof v === 'object' && v !== null) return `${k}{${Object.keys(v).join(',')}}`;
+    return `${k}:${typeof v}`;
+  });
+  return `{${parts.join(', ')}}`;
+}

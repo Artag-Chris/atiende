@@ -12,15 +12,16 @@ import { CryptoService } from '@modules/infrastructure/encryption/crypto.service
 import { parseMetaMessagingWebhook, verifyMetaSignature } from './meta-webhook.parser';
 
 /**
- * Base común de los adapters de la Messenger Platform (Instagram DM y
- * Messenger/Page). Ambos comparten:
- *  - Host: graph.facebook.com (NUNCA graph.instagram.com — ese host requiere
- *    Instagram Login y no sirve para bots).
- *  - Envío: POST /{v}/{IG_ID|PAGE_ID}/messages con Page Access Token.
- *  - Webhook entrante: shape entry[].messaging[] (parseado en meta-webhook.parser).
+ * Base común de los adapters de canales de Meta (Instagram DM y Messenger/Page).
+ * Ambos comparten el webhook entrante (shape entry[].messaging[], parseado en
+ * meta-webhook.parser) y el envío vía Graph API, pero difieren en:
+ *  - Host/endpoint: Instagram usa graph.instagram.com/me/messages (con su IG
+ *    Access Token); Messenger usa graph.facebook.com/{PAGE_ID}/messages (con
+ *    Page Access Token). Se resuelve con buildSendEndpoint().
+ *  - App de Meta: cada canal puede tener su propio app secret (appSecretKey).
  *
- * Subclases: InstagramAdapter (sin messaging_type, el token se resuelve por IG ID)
- * y MessengerAdapter (exige messaging_type: RESPONSE).
+ * Subclases: InstagramAdapter (sin messaging_type, token IG) y MessengerAdapter
+ * (exige messaging_type: RESPONSE).
  */
 @Injectable()
 export abstract class MetaMessagingAdapter implements ChannelProviderPort {
@@ -31,6 +32,8 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
   protected abstract readonly devAccountIdKey: string;
   /** Env var con el token dev (IG_TOKEN o PAGE_TOKEN). */
   protected abstract readonly devTokenKey: string;
+  /** Env var legacy de respaldo para el token dev (opcional). */
+  protected readonly fallbackDevTokenKey: string | undefined = undefined;
 
   protected readonly appSecret: string;
   protected readonly graphVersion: string;
@@ -136,8 +139,10 @@ export abstract class MetaMessagingAdapter implements ChannelProviderPort {
     if (this.config.get<string>('NODE_ENV') === 'production') {
       throw new Error('No valid token for channel account');
     }
-    const dev =
-      this.config.get<string>(this.devTokenKey) ?? this.config.get<string>('META_DEV_PAGE_TOKEN');
+    const dev = this.fallbackDevTokenKey
+      ? (this.config.get<string>(this.devTokenKey) ??
+        this.config.get<string>(this.fallbackDevTokenKey))
+      : this.config.get<string>(this.devTokenKey);
     if (!dev) {
       throw new Error(`${this.devTokenKey} not configured`);
     }
