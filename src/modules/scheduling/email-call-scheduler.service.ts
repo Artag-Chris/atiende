@@ -44,17 +44,7 @@ export class EmailCallScheduler implements CallSchedulerPort {
     // El lead ya está guardado; el email es best-effort (no debe romper el flujo).
     if (this.notifyEmail) {
       try {
-        const subject = `Nueva solicitud de llamada — ${input.customerIdentifier}`;
-        const body = [
-          `Canal: ${input.channel}`,
-          `Cliente: ${input.customerIdentifier}${input.customerEmail ? ` (${input.customerEmail})` : ''}`,
-          `Horario preferido: ${input.preferredTime}`,
-          input.notes ? `Notas: ${input.notes}` : '',
-          input.quoteId ? `Cotización asociada: ${input.quoteId}` : '',
-          `Conversación: ${input.conversationId}`,
-        ]
-          .filter(Boolean)
-          .join('\n');
+        const { subject, body } = this.buildCallRequestEmail(input, saved.id);
         await this.email.send(this.notifyEmail, subject, body);
       } catch (error) {
         this.logger.warn(`Failed to notify team about call request ${saved.id}: ${error}`);
@@ -66,14 +56,45 @@ export class EmailCallScheduler implements CallSchedulerPort {
     return { id: saved.id, status: saved.status };
   }
 
+  /** Construye el email de notificación del equipo (template simple, escalable). */
+  private buildCallRequestEmail(
+    input: CallSchedulerInput,
+    callRequestId: string,
+  ): { subject: string; body: string } {
+    const subject = `Nueva solicitud de llamada — ${input.customerIdentifier}`;
+    const lines = [
+      `Solicitud: ${callRequestId}`,
+      `Canal: ${input.channel}`,
+      `Cliente: ${input.customerIdentifier}${input.customerEmail ? ` (${input.customerEmail})` : ''}`,
+      `Horario preferido: ${input.preferredTime}`,
+      input.notes ? `Notas: ${input.notes}` : '',
+      input.quoteId ? `Cotización asociada: ${input.quoteId}` : '',
+      `Conversación: ${input.conversationId}`,
+    ];
+    return { subject, body: lines.filter(Boolean).join('\n') };
+  }
+
   /** Hash canónico para idempotencia (mismo cliente+conversación+horario). */
   private buildDedupKey(input: CallSchedulerInput): string {
     const canonical = JSON.stringify({
       channel: input.channel,
       customer: input.customerIdentifier,
       conversation: input.conversationId,
-      preferredTime: input.preferredTime.trim().toLowerCase(),
+      preferredTime: normalizePreferredTime(input.preferredTime),
     });
     return createHash('sha256').update(canonical).digest('hex');
   }
+}
+
+/** Normaliza el horario para el dedup: minúsculas, sin espacios extra, sin am/pm. */
+function normalizePreferredTime(time: string): string {
+  return (
+    time
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .replace(/\b(am|pm|a\.m\.|p\.m\.)\b/g, '')
+      // "3pm" (pegado al número) también se limpia.
+      .replace(/(\d)\s*(am|pm)/g, '$1')
+      .trim()
+  );
 }

@@ -290,6 +290,8 @@ export const EnvSchema = z
     /// JSON array de dominios Resend: [{ domain, apiKey, defaultFrom, ... }].
     /// Si está, se usa en vez de RESEND_API_KEY/NOTIFICATIONS_FROM_EMAIL.
     EMAIL_DOMAINS_CONFIG: z.string().optional(),
+    /// Dominio por defecto de EMAIL_DOMAINS_CONFIG (default lumenxlabs.com.co).
+    EMAIL_DEFAULT_DOMAIN: z.string().optional(),
     /// Email del equipo que recibe las solicitudes de llamada (tool schedule_call).
     /// Vacío = no notificar (o usar NOTIFICATIONS_FROM_EMAIL como fallback).
     SCHEDULING_NOTIFY_EMAIL: z.union([z.string().email(), z.literal('')]).optional(),

@@ -99,6 +99,25 @@ describe('EmailCallScheduler', () => {
     expect(keys[0]).toBe(keys[1]); // normaliza trim + lowercase
   });
 
+  it('normalizes am/pm in preferredTime so "3pm" and "3 pm" share the same dedupKey', async () => {
+    const save = vi.fn().mockResolvedValue({
+      id: 'call-1',
+      status: 'PENDING',
+      createdAt: new Date(),
+      ...input,
+      dedupKey: 'same',
+    });
+    const email = { send: vi.fn().mockResolvedValue(true) } as unknown as EmailSenderPort;
+    const repo = { save, findLatestForCustomer: vi.fn() } as unknown as CallRequestRepositoryPort;
+    scheduler = new EmailCallScheduler(makeConfig(), repo, email);
+
+    await scheduler.requestCall({ ...input, preferredTime: 'mañana a las 3pm' });
+    await scheduler.requestCall({ ...input, preferredTime: 'mañana a las 3 pm' });
+
+    const keys = save.mock.calls.map((c) => (c[0] as { dedupKey: string }).dedupKey);
+    expect(keys[0]).toBe(keys[1]); // el am/pm no genera duplicados
+  });
+
   it('keeps the call request saved even if the email fails', async () => {
     const repo = {
       save: vi.fn().mockResolvedValue({

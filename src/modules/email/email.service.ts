@@ -11,14 +11,14 @@ export interface EmailDomainConfig {
   displayName?: string;
 }
 
-const LUMEN_DOMAIN = 'lumenxlabs.com.co';
+const DEFAULT_DOMAIN = 'lumenxlabs.com.co';
 
 /**
  * Envía emails transaccionales vía la API de Resend (fetch directo).
  *
  * Resuelve la credencial desde EMAIL_DOMAINS_CONFIG (JSON array de dominios),
- * usando el dominio de LumenX (lumenxlabs.com.co). Fallback a las env viejas
- * (RESEND_API_KEY / NOTIFICATIONS_FROM_EMAIL) por compatibilidad.
+ * usando el dominio de EMAIL_DEFAULT_DOMAIN (default lumenxlabs.com.co).
+ * Fallback a las env viejas (RESEND_API_KEY / NOTIFICATIONS_FROM_EMAIL).
  *
  * Reutilizable a futuro: recordatorios de Cal.com, notificaciones de
  * escalación, etc.
@@ -30,7 +30,7 @@ export class ResendEmailService implements EmailSenderPort {
   private readonly from: string | undefined;
 
   constructor(private readonly config: ConfigService) {
-    const resolved = this.resolveLumenConfig();
+    const resolved = this.resolveDefaultDomain();
     this.apiKey = resolved?.apiKey ?? this.config.get<string>('RESEND_API_KEY');
     this.from = resolved?.defaultFrom ?? this.config.get<string>('NOTIFICATIONS_FROM_EMAIL');
   }
@@ -70,18 +70,20 @@ export class ResendEmailService implements EmailSenderPort {
     }
   }
 
-  /** Busca el dominio de LumenX en EMAIL_DOMAINS_CONFIG (o el primero si no está). */
-  private resolveLumenConfig(): EmailDomainConfig | undefined {
+  /**
+   * Busca la credencial del dominio por defecto en EMAIL_DOMAINS_CONFIG.
+   * El dominio es configurable (EMAIL_DEFAULT_DOMAIN); si no está en la lista,
+   * usa el primer dominio configurado (no falla en silencio).
+   */
+  private resolveDefaultDomain(): EmailDomainConfig | undefined {
     const raw = this.config.get<string>('EMAIL_DOMAINS_CONFIG');
     if (!raw) return undefined;
     try {
       const domains = JSON.parse(raw) as EmailDomainConfig[];
       if (!Array.isArray(domains) || domains.length === 0) return undefined;
-      return (
-        domains.find((d) => d.domain === LUMEN_DOMAIN) ??
-        domains.find((d) => d.domain.includes('lumen')) ??
-        domains[0]
-      );
+
+      const defaultDomain = this.config.get<string>('EMAIL_DEFAULT_DOMAIN') ?? DEFAULT_DOMAIN;
+      return domains.find((d) => d.domain === defaultDomain) ?? domains[0];
     } catch (error) {
       this.logger.warn(`EMAIL_DOMAINS_CONFIG is not valid JSON: ${error}`);
       return undefined;
