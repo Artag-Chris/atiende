@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
-import { z } from 'zod';
 import type { ToolModulePort, ToolExecutionResult } from '@core/ports/tool-module.port';
 import type { ToolDefinition, TurnContext } from '@core/domain/types';
 import {
@@ -144,15 +143,59 @@ function resolve<T>(text: string, aliases: Record<string, T>, fallback: T | null
   return fallback;
 }
 
-const InputSchema = z.object({
-  /** Términos naturales en el idioma del cliente (ej: "desarrollo web", "chatbot"). */
-  services: z.array(z.string().min(1)).min(1),
-  /** Proveedores de infraestructura (opcional). Acepta nombres naturales. */
-  database: z.string().optional(),
-  hosting: z.string().optional(),
-  region: z.string().optional(),
-  currency: z.enum(['USD', 'COP']).optional(),
-});
+/**
+ * Normaliza el input que produce el LLM (que varía: a veces "service", a veces
+ * "services"; "platform" puede ser hosting o database) a la forma canónica.
+ * Devuelve null si no hay servicios reconocibles.
+ */
+function normalizeInput(input: Record<string, unknown>): {
+  services: string[];
+  database?: string;
+  hosting?: string;
+  region?: string;
+  currency?: 'USD' | 'COP';
+} | null {
+  const raw = input as Record<string, unknown>;
+
+  // services: acepta "service"/"services"/"servicio"/"servicios" (string o array).
+  const serviceVal = raw.services ?? raw.service ?? raw.servicio ?? raw.servicios;
+  let services: string[] = [];
+  if (typeof serviceVal === 'string') {
+    services = [serviceVal];
+  } else if (Array.isArray(serviceVal)) {
+    services = serviceVal.filter((s): s is string => typeof s === 'string' && s.length > 0);
+  }
+  if (services.length === 0) return null;
+
+  // platform: puede ser hosting o database. Si es "neon"/"postgres" → database;
+  // si es "vercel"/"render"/"aws"/"amazon" → hosting (aws puede ser cualquiera).
+  const platform = typeof raw.platform === 'string' ? raw.platform : undefined;
+  const database = typeof raw.database === 'string' ? raw.database : undefined;
+  const hosting = typeof raw.hosting === 'string' ? raw.hosting : undefined;
+
+  let resolvedDatabase = database;
+  let resolvedHosting = hosting;
+  if (platform && !resolvedDatabase && !resolvedHosting) {
+    const dbAlias = resolve(platform, DATABASE_ALIASES, null);
+    const hostingAlias = resolve(platform, HOSTING_ALIASES, null);
+    if (dbAlias && !hostingAlias) {
+      resolvedDatabase = platform;
+    } else if (hostingAlias && !dbAlias) {
+      resolvedHosting = platform;
+    } else if (hostingAlias && dbAlias) {
+      // Ambiguo (aws/amazon): tratar como hosting por defecto (lo más común).
+      resolvedHosting = platform;
+    }
+  }
+
+  return {
+    services,
+    database: resolvedDatabase,
+    hosting: resolvedHosting,
+    region: typeof raw.region === 'string' ? raw.region : undefined,
+    currency: raw.currency === 'USD' || raw.currency === 'COP' ? raw.currency : undefined,
+  };
+}
 
 const USD_COP_PAIR = 'USD_COP';
 
@@ -216,15 +259,15 @@ export class EstimatePriceTool implements ToolModulePort {
   async execute(input: Record<string, unknown>, ctx: TurnContext): Promise<ToolExecutionResult> {
     const start = Date.now();
 
-    const parsed = InputSchema.safeParse(input);
-    if (!parsed.success) {
+    const normalized = normalizeInput(input);
+    if (!normalized) {
       return {
         output:
           'No pude interpretar la solicitud de cotización. Por favor pide los servicios que necesita (ej: desarrollo web, agente de WhatsApp, automatización).',
         isError: true,
       };
     }
-    const { services, database, hosting, region, currency } = parsed.data;
+    const { services, database, hosting, region, currency } = normalized;
 
     try {
       // 1. Resolver servicios: términos naturales → slugs → Product por categoría.
@@ -368,6 +411,9 @@ export class EstimatePriceTool implements ToolModulePort {
         quoteId: quote.id,
         total: totalDisplay,
         currency: quote.currency,
+        /** Siempre es un estimado, no un precio final. */
+        isEstimate: true,
+        note: 'Esta es una estimación inicial. El precio final depende de los detalles del proyecto.',
         services: serviceItems.map((s) => ({ name: s.name, priceUsd: s.priceUsd })),
         infrastructure: infraProviders.map((p) => ({
           provider: p.provider,

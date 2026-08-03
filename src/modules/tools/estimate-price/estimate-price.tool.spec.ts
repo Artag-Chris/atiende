@@ -32,17 +32,31 @@ function createTool(overrides?: {
   } as unknown as ConfigService;
 
   const cloudPricing = {
-    findByProviderService: vi.fn().mockResolvedValue({
-      id: 'cp-1',
-      provider: 'neon',
-      service: 'postgres',
-      region: 'global',
-      priceUsd: 19,
-      unit: 'month',
-      metadata: { latencyMs: 40 },
-      source: 'seed',
-      fetchedAt: new Date(),
-    }),
+    // Mock con precios REALES por provider para validar la resolución de cada cloud.
+    findByProviderService: vi
+      .fn()
+      .mockImplementation((provider: string, service: string, region: string) => {
+        const prices: Record<string, number> = {
+          'neon:postgres': 19,
+          'aws_rds:rds': 60,
+          'vercel:hosting': 20,
+          'render:hosting': 7,
+          'aws:hosting': 25,
+        };
+        const price = prices[`${provider}:${service}`];
+        if (!price) return null;
+        return {
+          id: `cp-${provider}-${service}`,
+          provider,
+          service,
+          region,
+          priceUsd: price,
+          unit: 'month',
+          metadata: { latencyMs: 40 },
+          source: 'seed',
+          fetchedAt: new Date(),
+        };
+      }),
     listByProvider: vi.fn().mockResolvedValue([]),
     upsert: vi.fn(),
     ...overrides?.cloudPricing,
@@ -107,6 +121,8 @@ describe('EstimatePriceTool', () => {
     expect(parsed.currency).toBe('COP');
     expect(parsed.quoteId).toBe('quote-1');
     expect(parsed.totalUsd).toBe(269); // 250 (Desarrollo) + 19 (neon postgres)
+    expect(parsed.isEstimate).toBe(true); // siempre es un estimado
+    expect(parsed.note).toContain('estimación inicial');
   });
 
   it('uses USD when currency is USD', async () => {
@@ -122,6 +138,36 @@ describe('EstimatePriceTool', () => {
 
     const parsed = JSON.parse(result.output);
     expect(result.isError).toBeUndefined();
+    expect(parsed.totalUsd).toBe(300); // IA
+  });
+
+  it('accepts the LLM-style input with singular "service" and "platform"', async () => {
+    // Este es el input real que produjo el LLM en producción y causaba el error.
+    const result = await tool.execute(
+      { service: 'desarrollo web', type: 'página estática', platform: 'Amazon' },
+      makeCtx(),
+    );
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.output);
+    // "Amazon" es ambiguo → el resolver lo trata como hosting AWS (25).
+    // 250 (Desarrollo) + 25 (hosting aws) = 275.
+    expect(parsed.totalUsd).toBe(275);
+  });
+
+  it('accepts "platform" as database when it is a db provider', async () => {
+    const result = await tool.execute({ service: 'desarrollo web', platform: 'neon' }, makeCtx());
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.output);
+    expect(parsed.totalUsd).toBe(269); // 250 + 19 (neon)
+  });
+
+  it('accepts singular "servicio" and "services" as array', async () => {
+    const result = await tool.execute({ servicios: 'chatbot' }, makeCtx());
+
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.output);
     expect(parsed.totalUsd).toBe(300); // IA
   });
 
@@ -156,5 +202,166 @@ describe('EstimatePriceTool', () => {
 
   it('is marked as stateful (mutatesState=true)', () => {
     expect(tool.mutatesState).toBe(true);
+  });
+
+  // ==========================================================================
+  // 25 casos parametrizados: distintas clouds, idiomas y variantes de input.
+  // ==========================================================================
+  const cases = [
+    // --- Español, solo servicio (COP por defecto) ---
+    { name: 'es: página web', input: { services: ['pagina web'] }, services: 250, infra: 0 },
+    { name: 'es: chatbot', input: { service: 'chatbot' }, services: 300, infra: 0 },
+    {
+      name: 'es: automatización',
+      input: { servicios: ['automatizacion'] },
+      services: 250,
+      infra: 0,
+    },
+    {
+      name: 'es: transformación digital',
+      input: { services: ['transformacion digital'] },
+      services: 250,
+      infra: 0,
+    },
+    {
+      name: 'es: cloud deployment',
+      input: { services: ['cloud deployment'] },
+      services: 250,
+      infra: 0,
+    },
+
+    // --- Español con distintas clouds (database/hosting/platform) ---
+    {
+      name: 'es: web + Neon db',
+      input: { service: 'desarrollo web', database: 'neon' },
+      services: 250,
+      infra: 19,
+    },
+    {
+      name: 'es: web + AWS RDS',
+      input: { service: 'desarrollo web', database: 'aws rds' },
+      services: 250,
+      infra: 60,
+    },
+    {
+      name: 'es: web + postgres',
+      input: { service: 'desarrollo web', platform: 'postgres' },
+      services: 250,
+      infra: 19,
+    },
+    {
+      name: 'es: web + Vercel',
+      input: { service: 'desarrollo web', hosting: 'vercel' },
+      services: 250,
+      infra: 20,
+    },
+    {
+      name: 'es: web + Render',
+      input: { service: 'desarrollo web', hosting: 'render' },
+      services: 250,
+      infra: 7,
+    },
+    {
+      name: 'es: web + Amazon',
+      input: { service: 'desarrollo web', platform: 'Amazon' },
+      services: 250,
+      infra: 25,
+    },
+    {
+      name: 'es: web + AWS hosting',
+      input: { service: 'desarrollo web', hosting: 'aws' },
+      services: 250,
+      infra: 25,
+    },
+    {
+      name: 'es: chatbot + Neon',
+      input: { service: 'chatbot', platform: 'neon' },
+      services: 300,
+      infra: 19,
+    },
+    {
+      name: 'es: chatbot + AWS RDS',
+      input: { service: 'chatbot', database: 'amazon rds' },
+      services: 300,
+      infra: 60,
+    },
+    {
+      name: 'es: automatización + Vercel',
+      input: { services: ['automatizacion'], hosting: 'vercel' },
+      services: 250,
+      infra: 20,
+    },
+
+    // --- Inglés (USD explícito) ---
+    {
+      name: 'en: website + Neon (USD)',
+      input: { services: ['website'], currency: 'USD', database: 'neon' },
+      services: 250,
+      infra: 19,
+    },
+    {
+      name: 'en: ai agent + AWS (USD)',
+      input: { service: 'ai agent', currency: 'USD', platform: 'aws' },
+      services: 300,
+      infra: 25,
+    },
+    {
+      name: 'en: automation + Render (USD)',
+      input: { services: ['automation'], currency: 'USD', hosting: 'render' },
+      services: 250,
+      infra: 7,
+    },
+    {
+      name: 'en: landing page + Vercel (USD)',
+      input: { service: 'landing page', currency: 'USD', hosting: 'vercel' },
+      services: 250,
+      infra: 20,
+    },
+    {
+      name: 'en: ecommerce + AWS RDS (USD)',
+      input: { services: ['ecommerce'], currency: 'USD', database: 'aws' },
+      services: 250,
+      infra: 60,
+    },
+
+    // --- Mixtos / multi-servicio / variantes de input ---
+    {
+      name: 'es: web + chatbot juntos',
+      input: { services: ['desarrollo web', 'chatbot'] },
+      services: 550,
+      infra: 0,
+    },
+    {
+      name: 'es: service singular + type',
+      input: { service: 'desarrollo web', type: 'sitio estatico' },
+      services: 250,
+      infra: 0,
+    },
+    {
+      name: 'es: página web + región Colombia',
+      input: { services: ['pagina web'], region: 'Colombia', database: 'neon' },
+      services: 250,
+      infra: 19,
+    },
+    {
+      name: 'en: chatbot + region USA (USD)',
+      input: { service: 'chatbot', currency: 'USD', region: 'USA' },
+      services: 300,
+      infra: 0,
+    },
+    {
+      name: 'es: agente whatsapp (sin infra)',
+      input: { services: ['agente de whatsapp'] },
+      services: 300,
+      infra: 0,
+    },
+  ];
+
+  it.each(cases)('$name → total USD = $services + $infra', async ({ input, services, infra }) => {
+    const result = await tool.execute(input, makeCtx());
+    expect(result.isError).toBeUndefined();
+    const parsed = JSON.parse(result.output);
+    expect(parsed.totalUsd).toBe(services + infra);
+    expect(parsed.currency).toBe(input.currency === 'USD' ? 'USD' : 'COP');
   });
 });

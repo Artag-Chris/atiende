@@ -76,7 +76,11 @@
       "Shell(npx prettier --write \"src/modules/pricing/exchange-rate-updater.service.ts\" 2>&1)",
       "Shell(curl -s https://open.er-api.com/v6/latest/USD 2 >& 1)",
       "Shell(curl -s \"https://open.er-api.com/v6/latest/USD\")",
-      "Shell(npx tsx -e \"import 'dotenv/config'; import { loadEnv } from './src/config/env'; const env = loadEnv(); console.log('OK'); console.log('EXCHANGE_RATE_API_URL:', env.EXCHANGE_RATE_API_URL); console.log('USD_TO_COP_RATE:', env.USD_TO_COP_RATE);\" 2>&1)"
+      "Shell(npx tsx -e \"import 'dotenv/config'; import { loadEnv } from './src/config/env'; const env = loadEnv(); console.log('OK'); console.log('EXCHANGE_RATE_API_URL:', env.EXCHANGE_RATE_API_URL); console.log('USD_TO_COP_RATE:', env.USD_TO_COP_RATE);\" 2>&1)",
+      "Shell(npx tsx -e \"import { z } from 'zod'; const InputSchema = z.object({ services: z.array(z.string().min(1)).min(1), database: z.string().optional(), hosting: z.string().optional(), region: z.string().optional(), currency: z.enum(['USD','COP']).optional() }); const r = InputSchema.safeParse({ service: 'desarrollo web', type: 'página estática', platform: 'AWS' }); console.log(JSON.stringify(r, null, 2));\" 2>&1)",
+      "Shell(npx vitest run src/modules/tools/estimate-price/estimate-price.tool.spec.ts 2>&1)",
+      "Shell(npx tsx -e \"const aliases={chatbot:'ai_for_business',ia:'ai_for_business'}; const normalize=(t)=>t.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,''); const resolve=(t,map)=>{const k=normalize(t); if(map[k]) return map[k]; for(const[a,v]of Object.entries(map)){const na=normalize(a); if(k.includes(na)||na.includes(k)) return v;} return null;}; console.log('chatbot ->', resolve('chatbot', aliases)); console.log('servicios key:', 'servicios' in {servicios:'chatbot'});\" 2>&1)",
+      "Shell(npx prettier --write src/modules/tools/estimate-price/estimate-price.tool.spec.ts 2 >& 1)"
     ],
     "deny": [],
     "defaultMode": "default"

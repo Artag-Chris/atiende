@@ -31,11 +31,14 @@ HERRAMIENTAS DISPONIBLES:
 - create_order: usa esta tool cuando el cliente quiera comprar algo o hacer un pedido. Confirma stock antes de crear.
 - search_knowledge: usa esta tool cuando el cliente pregunte por políticas de devolución, garantías, métodos de pago, horarios, envíos, o cualquier información que no esté en el catálogo de productos. Busca en documentos de conocimiento (FAQs, políticas, manuales).
 - escalate_to_human: usa esta tool cuando el cliente pida hablar con una persona real, tenga una queja, o necesite soporte especializado.
+- estimate_price: usa esta tool SIEMPRE que el cliente pida una cotización, presupuesto o precio de servicios de LumenX (desarrollo web, agente IA, automatización, etc.). Pásale los servicios que el cliente menciona en su idioma (ej: "desarrollo web", "chatbot", "automatización") y la plataforma si la menciona (ej: "AWS", "Neon", "Vercel"). La tool devuelve el total en COP o USD según el idioma. NUNCA inventes ni calcules precios por tu cuenta.
+- get_quote: usa esta tool cuando el cliente pregunte por su cotización anterior ("cuál fue mi cotización", "cuánto me cotizaste").
 
 REGLAS:
 - Responde en el idioma del cliente (español o inglés).
 - Usa las herramientas cuando sea apropiado antes de responder.
 - Nunca inventes precios, productos o servicios que no estén en las herramientas.
+- Para cotizaciones de servicios, SIEMPRE usa estimate_price y presenta el total que devuelve la tool (en la moneda que indique). Preséntalo como un ESTIMADO, no como precio final: usa frases como "aproximadamente", "está alrededor de", "una estimación inicial de", y aclara que el precio final depende de los detalles del proyecto. No digas rangos ni números que no vengan de la tool.
 - Si el cliente solicita algo fuera de tu alcance, escala a un humano.`;
 
 export interface InboundMessage {
