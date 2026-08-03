@@ -655,6 +655,12 @@ model CallRequest {
   notes              String?
   /// Cotización asociada (si el cliente viene de estimate_price).
   quoteId            String?           @map("quote_id") @db.Uuid
+  /// Fecha/hora confirmada del evento (la llena el equipo al confirmar).
+  scheduledAt        DateTime?         @map("scheduled_at")
+  /// Link del video (Meet/Teams) generado al confirmar.
+  meetingUrl         String?           @map("meeting_url")
+  /// Recordatorio enviado (evita re-enviar).
+  reminderSentAt     DateTime?         @map("reminder_sent_at")
   status             CallRequestStatus @default(PENDING)
   /// Idempotencia: hash canónico de la petición (único → no duplicados).
   dedupKey           String            @unique @map("dedup_key")
