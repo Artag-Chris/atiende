@@ -291,7 +291,8 @@ export const EnvSchema = z
     /// Si está, se usa en vez de RESEND_API_KEY/NOTIFICATIONS_FROM_EMAIL.
     EMAIL_DOMAINS_CONFIG: z.string().optional(),
     /// Email del equipo que recibe las solicitudes de llamada (tool schedule_call).
-    SCHEDULING_NOTIFY_EMAIL: z.string().email().optional(),
+    /// Vacío = no notificar (o usar NOTIFICATIONS_FROM_EMAIL como fallback).
+    SCHEDULING_NOTIFY_EMAIL: z.union([z.string().email(), z.literal('')]).optional(),
   })
   .superRefine((env, ctx) => {
     // La key de un provider optional solo es obligatoria si ese provider se usa.
