@@ -231,6 +231,7 @@ export const EnvSchema = z
     FEATURE_TOOL_INFO: boolFromEnv.default(true),
     FEATURE_TOOL_ESCALATION: boolFromEnv.default(true),
     FEATURE_TOOL_ESTIMATE_PRICE: boolFromEnv.default(true),
+    FEATURE_TOOL_SCHEDULE_CALL: boolFromEnv.default(true),
     FEATURE_EMBEDDINGS_PROVIDER: z.enum(['openai', 'voyage']).default('openai'),
 
     // ============================================================
@@ -286,6 +287,11 @@ export const EnvSchema = z
     NOTIFICATIONS_PROVIDER: z.enum(['resend', 'postmark', 'smtp', 'none']).default('none'),
     RESEND_API_KEY: z.string().optional(),
     NOTIFICATIONS_FROM_EMAIL: z.string().email().optional(),
+    /// JSON array de dominios Resend: [{ domain, apiKey, defaultFrom, ... }].
+    /// Si está, se usa en vez de RESEND_API_KEY/NOTIFICATIONS_FROM_EMAIL.
+    EMAIL_DOMAINS_CONFIG: z.string().optional(),
+    /// Email del equipo que recibe las solicitudes de llamada (tool schedule_call).
+    SCHEDULING_NOTIFY_EMAIL: z.string().email().optional(),
   })
   .superRefine((env, ctx) => {
     // La key de un provider optional solo es obligatoria si ese provider se usa.

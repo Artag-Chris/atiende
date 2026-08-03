@@ -8,6 +8,7 @@ import { CreateOrderTool } from './create-order/create-order.tool';
 import { SearchKnowledgeTool } from './search-knowledge/search-knowledge.tool';
 import { EstimatePriceTool } from './estimate-price/estimate-price.tool';
 import { GetQuoteTool } from './get-quote/get-quote.tool';
+import { ScheduleCallTool } from './schedule-call/schedule-call.tool';
 
 @Global()
 @Module({
@@ -20,6 +21,7 @@ import { GetQuoteTool } from './get-quote/get-quote.tool';
     SearchKnowledgeTool,
     EstimatePriceTool,
     GetQuoteTool,
+    ScheduleCallTool,
     {
       provide: TOOL_MODULES_TOKEN,
       useFactory: (
@@ -31,6 +33,7 @@ import { GetQuoteTool } from './get-quote/get-quote.tool';
         searchKnowledge: SearchKnowledgeTool,
         estimatePrice: EstimatePriceTool,
         getQuote: GetQuoteTool,
+        scheduleCall: ScheduleCallTool,
       ) => [
         info,
         escalation,
@@ -40,6 +43,7 @@ import { GetQuoteTool } from './get-quote/get-quote.tool';
         searchKnowledge,
         estimatePrice,
         getQuote,
+        scheduleCall,
       ],
       inject: [
         GetBusinessInfoTool,
@@ -50,6 +54,7 @@ import { GetQuoteTool } from './get-quote/get-quote.tool';
         SearchKnowledgeTool,
         EstimatePriceTool,
         GetQuoteTool,
+        ScheduleCallTool,
       ],
     },
   ],

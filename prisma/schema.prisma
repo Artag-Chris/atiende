@@ -44,6 +44,7 @@ model Business {
   businessUsers      BusinessUser[]
   channelAccounts    ChannelAccount[]
   quotes             Quote[]
+  callRequests       CallRequest[]
 
   @@index([archivedAt])
   @@map("businesses")
@@ -218,6 +219,7 @@ model Conversation {
   agentRuns AgentRun[]
   orders    Order[]
   quotes    Quote[]
+  callRequests CallRequest[]
 
   @@unique([businessId, channel, customerIdentifier])
   @@index([businessId, status, lastMessageAt])
@@ -618,11 +620,53 @@ model Quote {
 
   business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  callRequests CallRequest[]
 
   /// Identidad por canal: el mismo cliente en el mismo canal ve sus cotizaciones.
   @@index([businessId, channel, customerIdentifier])
   @@index([conversationId])
   @@index([businessId, status, createdAt])
   @@map("quotes")
+}
+
+enum CallRequestStatus {
+  PENDING // esperando confirmación del equipo
+  SCHEDULED // el equipo agendó y confirmó
+  DECLINED // el cliente no quiso / se canceló
+  DONE // la llamada ocurrió
+
+  @@map("call_request_status")
+}
+
+/// Lead de agendamiento de llamada/videollamada (tool schedule_call).
+/// La identidad es por canal: solo el mismo (businessId, channel, customerIdentifier)
+/// ve sus solicitudes. El quoteId opcional conecta el lead con su cotización.
+model CallRequest {
+  id                 String            @id @default(uuid()) @db.Uuid
+  businessId         String            @map("business_id") @db.Uuid
+  conversationId     String            @map("conversation_id") @db.Uuid
+  customerIdentifier String            @map("customer_identifier")
+  channel            Channel
+  /// Preferencia de día/hora libre que dio el cliente (texto).
+  preferredTime      String            @map("preferred_time")
+  /// Email del cliente (si lo dio; opcional).
+  customerEmail      String?           @map("customer_email")
+  /// Notas del cliente (motivo, tema de la llamada).
+  notes              String?
+  /// Cotización asociada (si el cliente viene de estimate_price).
+  quoteId            String?           @map("quote_id") @db.Uuid
+  status             CallRequestStatus @default(PENDING)
+  /// Idempotencia: hash canónico de la petición (único → no duplicados).
+  dedupKey           String            @unique @map("dedup_key")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  quote        Quote?       @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, channel, customerIdentifier])
+  @@index([businessId, status, createdAt])
+  @@map("call_requests")
 }
 

@@ -20,6 +20,8 @@ import { KnowledgeModule } from '../modules/knowledge/knowledge.module';
 import { DashboardModule } from '../modules/dashboard/dashboard.module';
 import { MaintenanceModule } from '../modules/maintenance/maintenance.module';
 import { PricingModule } from '../modules/pricing/pricing.module';
+import { EmailModule } from '../modules/email/email.module';
+import { SchedulingModule } from '../modules/scheduling/scheduling.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { HealthModule } from '../modules/health/health.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
@@ -107,6 +109,12 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
 
   // ----- Pricing (crons semanal de precios + diario del dólar) -----
   if (features.tools.estimatePrice) modules.push(PricingModule);
+
+  // ----- Email + agendamiento (tool schedule_call) -----
+  if (features.tools.scheduleCall) {
+    modules.push(EmailModule);
+    modules.push(SchedulingModule);
+  }
 
   return modules;
 }

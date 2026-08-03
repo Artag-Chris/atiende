@@ -47,6 +47,7 @@ function createFeatures(overrides?: Partial<Features>): Features {
       info: true,
       escalation: true,
       estimatePrice: true,
+      scheduleCall: true,
     },
     embeddings: { provider: 'openai' },
     ai: { promptCaching: true, compaction: false, adaptiveThinking: false, scopeGuard: false },

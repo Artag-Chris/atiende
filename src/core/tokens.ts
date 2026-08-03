@@ -50,6 +50,11 @@ export const UNIT_OF_WORK_TOKEN = Symbol('UNIT_OF_WORK');
 export const CLOUD_PRICING_REPOSITORY_TOKEN = Symbol('CLOUD_PRICING_REPOSITORY');
 export const EXCHANGE_RATE_REPOSITORY_TOKEN = Symbol('EXCHANGE_RATE_REPOSITORY');
 export const QUOTE_REPOSITORY_TOKEN = Symbol('QUOTE_REPOSITORY');
+export const CALL_REQUEST_REPOSITORY_TOKEN = Symbol('CALL_REQUEST_REPOSITORY');
+
+// ----- Scheduling / Email ----------------------------------------------------
+export const CALL_SCHEDULER_TOKEN = Symbol('CALL_SCHEDULER');
+export const EMAIL_SENDER_TOKEN = Symbol('EMAIL_SENDER');
 
 // ----- Infrastructure -------------------------------------------------------
 export const REDIS_CLIENT_TOKEN = Symbol('REDIS_CLIENT');

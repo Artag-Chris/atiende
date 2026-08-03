@@ -80,7 +80,14 @@
       "Shell(npx tsx -e \"import { z } from 'zod'; const InputSchema = z.object({ services: z.array(z.string().min(1)).min(1), database: z.string().optional(), hosting: z.string().optional(), region: z.string().optional(), currency: z.enum(['USD','COP']).optional() }); const r = InputSchema.safeParse({ service: 'desarrollo web', type: 'página estática', platform: 'AWS' }); console.log(JSON.stringify(r, null, 2));\" 2>&1)",
       "Shell(npx vitest run src/modules/tools/estimate-price/estimate-price.tool.spec.ts 2>&1)",
       "Shell(npx tsx -e \"const aliases={chatbot:'ai_for_business',ia:'ai_for_business'}; const normalize=(t)=>t.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,''); const resolve=(t,map)=>{const k=normalize(t); if(map[k]) return map[k]; for(const[a,v]of Object.entries(map)){const na=normalize(a); if(k.includes(na)||na.includes(k)) return v;} return null;}; console.log('chatbot ->', resolve('chatbot', aliases)); console.log('servicios key:', 'servicios' in {servicios:'chatbot'});\" 2>&1)",
-      "Shell(npx prettier --write src/modules/tools/estimate-price/estimate-price.tool.spec.ts 2 >& 1)"
+      "Shell(npx prettier --write src/modules/tools/estimate-price/estimate-price.tool.spec.ts 2 >& 1)",
+      "Shell(npx vitest run src/modules/tools/schedule-call/schedule-call.tool.spec.ts 2>&1)",
+      "Shell(npx vitest run src/modules/tools/schedule-call/schedule-call.tool.spec.ts src/modules/scheduling/email-call-scheduler.service.spec.ts 2>&1)",
+      "Shell(npx prettier --write src/modules/scheduling/email-call-scheduler.service.spec.ts 2 >& 1)",
+      "Shell(npx tsx -e \"import 'dotenv/config'; const raw = process.env.EMAIL_DOMAINS_CONFIG; const domains = JSON.parse(raw); const lumen = domains.find(d => d.domain === 'lumenxlabs.com.co'); console.log('Dominios:', domains.map(d => d.domain)); console.log('LumenX:', lumen?.domain, '| from:', lumen?.defaultFrom, '| apiKey set:', !!lumen?.apiKey);\" 2>&1)",
+      "Shell(npx prettier --write src/modules/email/email.service.ts 2 >& 1)",
+      "Shell(npx tsx -e \"import 'dotenv/config'; import { ConfigService } from '@nestjs/config'; import { ResendEmailService } from './src/modules/email/email.service'; const svc = new ResendEmailService(new ConfigService()); const ok = await svc.send('scristxyz@gmail.com', 'Test Atiende — schedule_call', 'Hola Christian, este es un email de prueba enviado desde el EmailService de Atiende usando el dominio lumenxlabs.com.co vía Resend.'); console.log('Enviado:', ok);\" 2>&1)",
+      "Shell(npx tsx -e \"import 'dotenv/config'; import { ConfigService } from '@nestjs/config'; import { ResendEmailService } from './src/modules/email/email.service'; (async () => { const svc = new ResendEmailService(new ConfigService()); const ok = await svc.send('scristxyz@gmail.com', 'Test Atiende — schedule_call', 'Hola Christian, este es un email de prueba enviado desde el EmailService de Atiende usando el dominio lumenxlabs.com.co via Resend.'); console.log('Enviado:', ok); })();\" 2>&1)"
     ],
     "deny": [],
     "defaultMode": "default"
