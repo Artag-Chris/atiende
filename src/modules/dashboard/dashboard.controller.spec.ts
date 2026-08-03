@@ -11,6 +11,7 @@ import { DashboardController } from './dashboard.controller';
 import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
 import type { ChannelRouterService } from '@modules/channels/router/channel-router.service';
+import type { EmailSenderPort } from '@core/ports/email-sender.port';
 
 function createConversationRepo() {
   return {
@@ -39,6 +40,12 @@ function createChannels() {
   } as unknown as ChannelRouterService;
 }
 
+function createEmailSender() {
+  return {
+    send: vi.fn().mockResolvedValue(true),
+  } as unknown as EmailSenderPort;
+}
+
 const escalatedConversation = {
   id: 'conv-1',
   businessId: 'biz-1',
@@ -56,12 +63,14 @@ describe('DashboardController', () => {
   let conversationRepo: ReturnType<typeof createConversationRepo>;
   let messageRepo: ReturnType<typeof createMessageRepo>;
   let channels: ReturnType<typeof createChannels>;
+  let emailSender: ReturnType<typeof createEmailSender>;
 
   beforeEach(() => {
     conversationRepo = createConversationRepo();
     messageRepo = createMessageRepo();
     channels = createChannels();
-    controller = new DashboardController(conversationRepo, messageRepo, channels);
+    emailSender = createEmailSender();
+    controller = new DashboardController(conversationRepo, messageRepo, channels, emailSender);
   });
 
   describe('listEscalations', () => {
@@ -487,6 +496,106 @@ describe('DashboardController', () => {
       await expect(
         controller.resolveConversation('conv-1', makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('sendEmail', () => {
+    const validBody = { to: 'cliente@mail.com', subject: 'Hola', text: 'Mensaje' };
+
+    it('sends the email for an ADMIN', async () => {
+      const result = await controller.sendEmail(
+        validBody,
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+      );
+
+      expect(result).toEqual({ ok: true, to: 'cliente@mail.com' });
+      expect(emailSender.send).toHaveBeenCalledWith('cliente@mail.com', 'Hola', 'Mensaje');
+    });
+
+    it('trims the payload before sending', async () => {
+      await controller.sendEmail(
+        { to: '  cliente@mail.com  ', subject: '  Hola  ', text: '  Mensaje  ' },
+        makeReq({ businessId: 'biz-1', role: 'SUPER_ADMIN' }),
+      );
+
+      expect(emailSender.send).toHaveBeenCalledWith('cliente@mail.com', 'Hola', 'Mensaje');
+    });
+
+    it('rejects users without ADMIN/SUPER_ADMIN role', async () => {
+      await expect(
+        controller.sendEmail(validBody, makeReq({ businessId: 'biz-1', role: 'AGENT' })),
+      ).rejects.toThrow(ForbiddenException);
+      expect(emailSender.send).not.toHaveBeenCalled();
+    });
+
+    it('rejects requests without a valid destination email', async () => {
+      await expect(
+        controller.sendEmail(
+          { ...validBody, to: 'no-es-email' },
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(emailSender.send).not.toHaveBeenCalled();
+    });
+
+    it('rejects an empty subject', async () => {
+      await expect(
+        controller.sendEmail(
+          { ...validBody, subject: '   ' },
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a subject over the max length', async () => {
+      await expect(
+        controller.sendEmail(
+          { ...validBody, subject: 'x'.repeat(201) },
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects an empty body', async () => {
+      await expect(
+        controller.sendEmail(
+          { ...validBody, text: '' },
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects a body over the max length', async () => {
+      await expect(
+        controller.sendEmail(
+          { ...validBody, text: 'x'.repeat(10_001) },
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws ServiceUnavailableException when no email provider is configured', async () => {
+      emailSender.send = vi.fn().mockResolvedValue(false);
+
+      await expect(
+        controller.sendEmail(validBody, makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('throws ServiceUnavailableException when the provider fails', async () => {
+      emailSender.send = vi.fn().mockRejectedValue(new Error('Resend 500'));
+
+      await expect(
+        controller.sendEmail(validBody, makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('throws ServiceUnavailableException when the email service is disabled', async () => {
+      controller = new DashboardController(conversationRepo, messageRepo, channels, undefined);
+
+      await expect(
+        controller.sendEmail(validBody, makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
+      ).rejects.toThrow(ServiceUnavailableException);
     });
   });
 });

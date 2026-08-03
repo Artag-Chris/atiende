@@ -110,9 +110,13 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   // ----- Pricing (crons semanal de precios + diario del dólar) -----
   if (features.tools.estimatePrice) modules.push(PricingModule);
 
-  // ----- Email + agendamiento (tool schedule_call) -----
+  // ----- Email (dashboard, notificaciones, schedule_call) -----
+  // Se carga siempre: el dashboard puede enviar emails (solo ADMIN/SUPER_ADMIN
+  // vía JWT) aunque la tool schedule_call esté deshabilitada.
+  modules.push(EmailModule);
+
+  // ----- Agendamiento (tool schedule_call) -----
   if (features.tools.scheduleCall) {
-    modules.push(EmailModule);
     modules.push(SchedulingModule);
   }
 

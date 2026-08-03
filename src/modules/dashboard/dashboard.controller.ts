@@ -17,13 +17,20 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { CONVERSATION_REPOSITORY_TOKEN, MESSAGE_REPOSITORY_TOKEN } from '@core/tokens';
+import {
+  CONVERSATION_REPOSITORY_TOKEN,
+  MESSAGE_REPOSITORY_TOKEN,
+  EMAIL_SENDER_TOKEN,
+} from '@core/tokens';
 import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
+import type { EmailSenderPort } from '@core/ports/email-sender.port';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChannelRouterService } from '../channels/router/channel-router.service';
 
 const MAX_REPLY_TEXT_LENGTH = 1000;
+const MAX_EMAIL_SUBJECT_LENGTH = 200;
+const MAX_EMAIL_BODY_LENGTH = 10_000;
 
 /** Extrae el texto legible del content de un mensaje (blocks Anthropic o string). */
 function extractMessageText(content: unknown): string {
@@ -51,6 +58,9 @@ export class DashboardController {
     private readonly messageRepo: MessageRepositoryPort,
     @Optional()
     private readonly channels?: ChannelRouterService,
+    @Optional()
+    @Inject(EMAIL_SENDER_TOKEN)
+    private readonly emailSender?: EmailSenderPort,
   ) {}
 
   @Get('escalations')
@@ -199,6 +209,66 @@ export class DashboardController {
     await this.conversationRepo.touchLastMessage(conversation.id);
 
     return { ok: true };
+  }
+
+  /**
+   * Envío de email desde el dashboard. SOLO accesible por usuarios con JWT
+   * (roles ADMIN/SUPER_ADMIN). El agente de chat no tiene ninguna tool que
+   * invoque este camino, así que un cliente no puede pedirle que envíe emails.
+   */
+  @Post('emails/send')
+  async sendEmail(
+    @Body() body: { to?: string; subject?: string; text?: string },
+    @Req() req: Request,
+  ) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+
+    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Requires one of: ADMIN, SUPER_ADMIN');
+    }
+
+    if (!this.emailSender) {
+      throw new ServiceUnavailableException('El servicio de email no está habilitado');
+    }
+
+    const to = body?.to?.trim() ?? '';
+    const subject = body?.subject?.trim() ?? '';
+    const text = body?.text?.trim() ?? '';
+
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!to || !EMAIL_RE.test(to)) {
+      throw new BadRequestException('Se requiere un email destino válido');
+    }
+    if (!subject) {
+      throw new BadRequestException('El asunto no puede estar vacío');
+    }
+    if (subject.length > MAX_EMAIL_SUBJECT_LENGTH) {
+      throw new BadRequestException(`El asunto supera los ${MAX_EMAIL_SUBJECT_LENGTH} caracteres`);
+    }
+    if (!text) {
+      throw new BadRequestException('El mensaje no puede estar vacío');
+    }
+    if (text.length > MAX_EMAIL_BODY_LENGTH) {
+      throw new BadRequestException(`El mensaje supera los ${MAX_EMAIL_BODY_LENGTH} caracteres`);
+    }
+
+    try {
+      const sent = await this.emailSender.send(to, subject, text);
+      if (!sent) {
+        throw new ServiceUnavailableException(
+          'El proveedor de email no está configurado (EMAIL_DOMAINS_CONFIG / RESEND_API_KEY)',
+        );
+      }
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      this.logger.error(`Dashboard email send failed: ${error}`);
+      throw new ServiceUnavailableException('No se pudo enviar el email');
+    }
+
+    this.logger.log(
+      `Email sent from dashboard by role ${user?.role ?? '?'} (businessId ${user?.businessId ?? '?'}) to ${to}`,
+    );
+    return { ok: true, to };
   }
 
   @Post('conversations/:id/resolve')
