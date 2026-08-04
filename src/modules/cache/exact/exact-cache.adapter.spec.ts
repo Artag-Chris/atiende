@@ -59,6 +59,7 @@ function createFeatures(overrides?: Partial<Features>): Features {
       exactTtlSeconds: 1800,
     },
     observability: { otel: false, sentry: false },
+    growth: false,
     ...overrides,
   };
 }

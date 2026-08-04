@@ -11,6 +11,8 @@ import {
   EXCHANGE_RATE_REPOSITORY_TOKEN,
   QUOTE_REPOSITORY_TOKEN,
   CALL_REQUEST_REPOSITORY_TOKEN,
+  GROWTH_ANALYTICS_REPOSITORY_TOKEN,
+  GROWTH_USAGE_REPOSITORY_TOKEN,
 } from '@core/tokens';
 import { PrismaModule } from './prisma.module';
 import { BusinessRepository } from './business.repository';
@@ -24,6 +26,8 @@ import { CloudPricingRepository } from './cloud-pricing.repository';
 import { ExchangeRateRepository } from './exchange-rate.repository';
 import { QuoteRepository } from './quote.repository';
 import { CallRequestRepository } from './call-request.repository';
+import { GrowthAnalyticsRepository } from './growth.repository';
+import { GrowthUsageRepository } from './growth-usage.repository';
 import { PostgresUnitOfWork } from './unit-of-work';
 
 @Global()
@@ -41,6 +45,8 @@ import { PostgresUnitOfWork } from './unit-of-work';
     ExchangeRateRepository,
     QuoteRepository,
     CallRequestRepository,
+    GrowthAnalyticsRepository,
+    GrowthUsageRepository,
     PostgresUnitOfWork,
     {
       provide: AGENT_RUN_REPOSITORY_TOKEN,
@@ -86,6 +92,14 @@ import { PostgresUnitOfWork } from './unit-of-work';
       provide: CALL_REQUEST_REPOSITORY_TOKEN,
       useExisting: CallRequestRepository,
     },
+    {
+      provide: GROWTH_ANALYTICS_REPOSITORY_TOKEN,
+      useExisting: GrowthAnalyticsRepository,
+    },
+    {
+      provide: GROWTH_USAGE_REPOSITORY_TOKEN,
+      useExisting: GrowthUsageRepository,
+    },
   ],
   exports: [
     BusinessRepository,
@@ -110,6 +124,8 @@ import { PostgresUnitOfWork } from './unit-of-work';
     EXCHANGE_RATE_REPOSITORY_TOKEN,
     QUOTE_REPOSITORY_TOKEN,
     CALL_REQUEST_REPOSITORY_TOKEN,
+    GROWTH_ANALYTICS_REPOSITORY_TOKEN,
+    GROWTH_USAGE_REPOSITORY_TOKEN,
   ],
 })
 export class PostgresPersistenceModule {}

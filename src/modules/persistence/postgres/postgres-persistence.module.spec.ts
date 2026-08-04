@@ -10,6 +10,8 @@ import {
   MESSAGE_REPOSITORY_TOKEN,
   INBOUND_MESSAGE_REPOSITORY_TOKEN,
   UNIT_OF_WORK_TOKEN,
+  GROWTH_ANALYTICS_REPOSITORY_TOKEN,
+  GROWTH_USAGE_REPOSITORY_TOKEN,
 } from '@core/tokens';
 
 describe('PostgresPersistenceModule (DI wiring)', () => {
@@ -28,6 +30,8 @@ describe('PostgresPersistenceModule (DI wiring)', () => {
     expect(moduleRef.get(CONVERSATION_REPOSITORY_TOKEN)).toBeDefined();
     expect(moduleRef.get(MESSAGE_REPOSITORY_TOKEN)).toBeDefined();
     expect(moduleRef.get(INBOUND_MESSAGE_REPOSITORY_TOKEN)).toBeDefined();
+    expect(moduleRef.get(GROWTH_ANALYTICS_REPOSITORY_TOKEN)).toBeDefined();
+    expect(moduleRef.get(GROWTH_USAGE_REPOSITORY_TOKEN)).toBeDefined();
     expect(moduleRef.get(UNIT_OF_WORK_TOKEN)).toBeInstanceOf(PostgresUnitOfWork);
   });
 });

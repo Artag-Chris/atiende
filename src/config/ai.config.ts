@@ -162,6 +162,13 @@ export interface AgentLimits {
 export interface AIConfig {
   primary: LLMProviderConfig;
   fallback: LLMProviderConfig | null;
+  /**
+   * LLM del asesor de growth (análisis y proyecciones). Independiente del
+   * agente de chat: por defecto hereda el provider primario, pero se puede
+   * cambiar a otra IA solo con env (ANALYTICS_LLM_*). El asesor inyecta
+   * ANALYTICS_LLM_PROVIDER_TOKEN, nunca LLM_PROVIDER_TOKEN.
+   */
+  analytics: LLMProviderConfig;
   promptCaching: PromptCachingConfig;
   compaction: CompactionConfig;
   adaptiveThinking: boolean;
@@ -182,35 +189,38 @@ export function buildAIConfig(env: Env): AIConfig {
   const isPrimaryGroq = env.FEATURE_LLM_PRIMARY === 'groq';
   const isPrimaryKimi = env.FEATURE_LLM_PRIMARY === 'kimi';
 
+  const primary: LLMProviderConfig = {
+    provider: env.FEATURE_LLM_PRIMARY,
+    model: modelForProvider(env.FEATURE_LLM_PRIMARY, env),
+    effort:
+      isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq || isPrimaryKimi
+        ? 'medium'
+        : env.ANTHROPIC_EFFORT,
+    maxTokens: isPrimaryKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS,
+    timeoutMs: isPrimaryOpenAI
+      ? env.OPENAI_TIMEOUT_MS
+      : isPrimaryGemini
+        ? env.GEMINI_TIMEOUT_MS
+        : isPrimaryGroq
+          ? env.GROQ_TIMEOUT_MS
+          : isPrimaryKimi
+            ? env.KIMI_TIMEOUT_MS
+            : env.ANTHROPIC_TIMEOUT_MS,
+    maxRetries: isPrimaryOpenAI
+      ? env.OPENAI_MAX_RETRIES
+      : isPrimaryGemini
+        ? env.GEMINI_MAX_RETRIES
+        : isPrimaryGroq
+          ? env.GROQ_MAX_RETRIES
+          : isPrimaryKimi
+            ? env.KIMI_MAX_RETRIES
+            : env.ANTHROPIC_MAX_RETRIES,
+  };
+
   return {
-    primary: {
-      provider: env.FEATURE_LLM_PRIMARY,
-      model: modelForProvider(env.FEATURE_LLM_PRIMARY, env),
-      effort:
-        isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq || isPrimaryKimi
-          ? 'medium'
-          : env.ANTHROPIC_EFFORT,
-      maxTokens: isPrimaryKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS,
-      timeoutMs: isPrimaryOpenAI
-        ? env.OPENAI_TIMEOUT_MS
-        : isPrimaryGemini
-          ? env.GEMINI_TIMEOUT_MS
-          : isPrimaryGroq
-            ? env.GROQ_TIMEOUT_MS
-            : isPrimaryKimi
-              ? env.KIMI_TIMEOUT_MS
-              : env.ANTHROPIC_TIMEOUT_MS,
-      maxRetries: isPrimaryOpenAI
-        ? env.OPENAI_MAX_RETRIES
-        : isPrimaryGemini
-          ? env.GEMINI_MAX_RETRIES
-          : isPrimaryGroq
-            ? env.GROQ_MAX_RETRIES
-            : isPrimaryKimi
-              ? env.KIMI_MAX_RETRIES
-              : env.ANTHROPIC_MAX_RETRIES,
-    },
+    primary,
     fallback: buildFallbackConfig(env),
+    analytics: buildAnalyticsConfig(env, primary),
     promptCaching: {
       enabled: env.ANTHROPIC_PROMPT_CACHING && env.FEATURE_AI_PROMPT_CACHING,
       defaultTtl: env.ANTHROPIC_CACHE_TTL,
@@ -227,6 +237,35 @@ export function buildAIConfig(env: Env): AIConfig {
       budgetUsdPerConversation: env.AGENT_BUDGET_USD_PER_CONVERSATION,
       targetLatencyP95Ms: env.AGENT_TARGET_LATENCY_P95_MS,
     },
+  };
+}
+
+/**
+ * Bloque de config del LLM de analytics. Hereda el provider primario salvo que
+ * se override con ANALYTICS_LLM_*. Permite apuntar el asesor de growth a otra
+ * IA (modelo/proveedor distinto) sin tocar el pipeline del agente de chat.
+ */
+export function buildAnalyticsConfig(env: Env, primary: LLMProviderConfig): LLMProviderConfig {
+  const provider = env.ANALYTICS_LLM_PROVIDER ?? primary.provider;
+  const isKimi = provider === 'kimi';
+  return {
+    provider,
+    model: env.ANALYTICS_LLM_MODEL ?? modelForProvider(provider, env),
+    effort: 'medium',
+    maxTokens:
+      env.ANALYTICS_LLM_MAX_TOKENS ?? (isKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS),
+    timeoutMs:
+      env.ANALYTICS_LLM_TIMEOUT_MS ??
+      (provider === 'openai'
+        ? env.OPENAI_TIMEOUT_MS
+        : provider === 'gemini'
+          ? env.GEMINI_TIMEOUT_MS
+          : provider === 'groq'
+            ? env.GROQ_TIMEOUT_MS
+            : isKimi
+              ? env.KIMI_TIMEOUT_MS
+              : env.ANTHROPIC_TIMEOUT_MS),
+    maxRetries: env.ANALYTICS_LLM_MAX_RETRIES ?? primary.maxRetries,
   };
 }
 

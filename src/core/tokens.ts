@@ -20,6 +20,12 @@ export const LLM_PROVIDER_TOKEN = Symbol('LLM_PROVIDER');
 /** Adapter primario, consumido por LLMRouterService. */
 export const LLM_PRIMARY_PROVIDER_TOKEN = Symbol('LLM_PRIMARY_PROVIDER');
 export const LLM_PROVIDER_FALLBACK_TOKEN = Symbol('LLM_PROVIDER_FALLBACK');
+/**
+ * LLM del asesor de growth (análisis/proyecciones). Independiente del router
+ * del chat: se construye desde AIConfig.analytics (ANALYTICS_LLM_*). Sin esto,
+ * el asesor no puede apuntar a otra IA sin tocar el pipeline del agente.
+ */
+export const ANALYTICS_LLM_PROVIDER_TOKEN = Symbol('ANALYTICS_LLM_PROVIDER');
 
 // ----- Embeddings ------------------------------------------------------------
 export const EMBEDDING_PROVIDER_TOKEN = Symbol('EMBEDDING_PROVIDER');
@@ -51,6 +57,9 @@ export const CLOUD_PRICING_REPOSITORY_TOKEN = Symbol('CLOUD_PRICING_REPOSITORY')
 export const EXCHANGE_RATE_REPOSITORY_TOKEN = Symbol('EXCHANGE_RATE_REPOSITORY');
 export const QUOTE_REPOSITORY_TOKEN = Symbol('QUOTE_REPOSITORY');
 export const CALL_REQUEST_REPOSITORY_TOKEN = Symbol('CALL_REQUEST_REPOSITORY');
+export const GROWTH_ANALYTICS_REPOSITORY_TOKEN = Symbol('GROWTH_ANALYTICS_REPOSITORY');
+/** Uso del asesor de growth (para el presupuesto diario por business). */
+export const GROWTH_USAGE_REPOSITORY_TOKEN = Symbol('GROWTH_USAGE_REPOSITORY');
 
 // ----- Scheduling / Email ----------------------------------------------------
 export const CALL_SCHEDULER_TOKEN = Symbol('CALL_SCHEDULER');

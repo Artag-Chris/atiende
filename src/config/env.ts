@@ -92,6 +92,20 @@ export const EnvSchema = z
     KIMI_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 
     // ============================================================
+    // 5e. ANALYTICS LLM (asesor de growth — SEPARADO del agente de chat)
+    // ============================================================
+    // Modelo/proveedor independiente para análisis y proyecciones del asesor
+    // de growth. Sin configurar, hereda el provider primario del agente. Esto
+    // permite cambiar a otra IA para analytics sin tocar el pipeline del chat.
+    ANALYTICS_LLM_PROVIDER: z
+      .enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'mock'])
+      .optional(),
+    ANALYTICS_LLM_MODEL: z.string().optional(),
+    ANALYTICS_LLM_MAX_TOKENS: z.coerce.number().int().positive().optional(),
+    ANALYTICS_LLM_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+    ANALYTICS_LLM_MAX_RETRIES: z.coerce.number().int().min(0).optional(),
+
+    // ============================================================
     // 6. META WHATSAPP
     // ============================================================
     META_APP_ID: z.string().min(1, 'META_APP_ID is required'),
@@ -233,6 +247,11 @@ export const EnvSchema = z
     FEATURE_TOOL_ESTIMATE_PRICE: boolFromEnv.default(true),
     FEATURE_TOOL_SCHEDULE_CALL: boolFromEnv.default(true),
     FEATURE_EMBEDDINGS_PROVIDER: z.enum(['openai', 'voyage']).default('openai'),
+    /// Habilita el módulo de growth (KPIs + asesor de analytics vía dashboard).
+    FEATURE_GROWTH: boolFromEnv.default(false),
+    /// Presupuesto diario de USD por business para preguntas al asesor de growth.
+    /// 0 = sin límite.
+    GROWTH_ADVISOR_BUDGET_USD_DAY: z.coerce.number().min(0).default(1.0),
 
     // ============================================================
     // 17b. PRICING (tool estimate_price + crons)
@@ -307,6 +326,15 @@ export const EnvSchema = z
         path: ['KIMI_API_KEY'],
         message:
           'KIMI_API_KEY is required when FEATURE_LLM_PRIMARY or FEATURE_LLM_FALLBACK is "kimi"',
+      });
+    }
+    // El LLM de analytics es independiente: si se elige kimi explícitamente,
+    // también exige su key (mismo motivo: el SDK no debe resolver la key a otro).
+    if (env.ANALYTICS_LLM_PROVIDER === 'kimi' && !env.KIMI_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['KIMI_API_KEY'],
+        message: 'KIMI_API_KEY is required when ANALYTICS_LLM_PROVIDER is "kimi"',
       });
     }
   });

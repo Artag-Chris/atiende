@@ -26,6 +26,7 @@ describe('MessageRepository', () => {
 
   const mockMessage = {
     id: 'msg-1',
+    businessId: 'biz-1',
     conversationId: 'conv-1',
     role: 'USER',
     content: [{ type: 'text', text: 'hola' }],
@@ -45,6 +46,7 @@ describe('MessageRepository', () => {
 
       const result = await repo.save({
         conversationId: 'conv-1',
+        businessId: 'biz-1',
         role: 'HUMAN',
         content: [{ type: 'text', text: 'te ayudo' }],
       });
@@ -52,6 +54,7 @@ describe('MessageRepository', () => {
       expect(result).toEqual({ ...mockMessage, created: true });
       expect(prisma.message.create).toHaveBeenCalledWith({
         data: {
+          business: { connect: { id: 'biz-1' } },
           conversation: { connect: { id: 'conv-1' } },
           role: 'HUMAN',
           content: [{ type: 'text', text: 'te ayudo' }],
@@ -66,6 +69,7 @@ describe('MessageRepository', () => {
 
       const result = await repo.save({
         conversationId: 'conv-1',
+        businessId: 'biz-1',
         role: 'USER',
         content: [{ type: 'text', text: 'hola' }],
         inboundMessageId: 'inbound-1',
@@ -77,6 +81,7 @@ describe('MessageRepository', () => {
       });
       expect(prisma.message.create).toHaveBeenCalledWith({
         data: {
+          business: { connect: { id: 'biz-1' } },
           conversation: { connect: { id: 'conv-1' } },
           role: 'USER',
           content: [{ type: 'text', text: 'hola' }],
@@ -91,6 +96,7 @@ describe('MessageRepository', () => {
 
       const result = await repo.save({
         conversationId: 'conv-1',
+        businessId: 'biz-1',
         role: 'USER',
         content: [{ type: 'text', text: 'hola' }],
         inboundMessageId: 'inbound-1',
@@ -109,6 +115,7 @@ describe('MessageRepository', () => {
 
       const result = await repo.save({
         conversationId: 'conv-1',
+        businessId: 'biz-1',
         role: 'USER',
         content: [{ type: 'text', text: 'hola' }],
         inboundMessageId: 'inbound-1',

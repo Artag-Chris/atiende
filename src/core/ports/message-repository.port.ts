@@ -19,6 +19,8 @@ export interface InboundActivityItem {
 export interface MessageRepositoryPort {
   save(data: {
     conversationId: string;
+    /** Denormalizado para consultas tenant-scoped de analytics sin JOIN. */
+    businessId: string;
     role: string;
     content: unknown;
     tokenUsage?: unknown;

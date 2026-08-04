@@ -203,6 +203,7 @@ export class DashboardController {
     // falla tras un send exitoso, un reintento del cliente lo dejará visible.
     await this.messageRepo.save({
       conversationId: conversation.id,
+      businessId: conversation.businessId,
       role: 'HUMAN',
       content: [{ type: 'text', text }],
     });

@@ -36,6 +36,8 @@ export interface Features {
   embeddings: {
     provider: 'openai' | 'voyage';
   };
+  /** Asesor de growth: KPIs + análisis/proyecciones vía dashboard. */
+  growth: boolean;
   ai: {
     promptCaching: boolean;
     compaction: boolean;
@@ -80,6 +82,7 @@ export function buildFeatures(env: Env): Features {
     embeddings: {
       provider: env.FEATURE_EMBEDDINGS_PROVIDER,
     },
+    growth: env.FEATURE_GROWTH,
     ai: {
       promptCaching: env.FEATURE_AI_PROMPT_CACHING,
       compaction: env.FEATURE_AI_COMPACTION,

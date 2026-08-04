@@ -349,6 +349,7 @@ describe('DashboardController', () => {
       });
       expect(messageRepo.save).toHaveBeenCalledWith({
         conversationId: 'conv-1',
+        businessId: 'biz-1',
         role: 'HUMAN',
         content: [{ type: 'text', text: 'Hola, te atiende Christian' }],
       });

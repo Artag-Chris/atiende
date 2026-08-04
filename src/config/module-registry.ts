@@ -11,6 +11,7 @@ import { GroqModule } from '../modules/llm/groq/groq.module';
 import { KimiModule } from '../modules/llm/kimi/kimi.module';
 import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
 import { LLMRouterModule } from '../modules/llm/router/llm-router.module';
+import { AnalyticsLLMModule } from '../modules/llm/analytics/analytics-llm.module';
 import { ChannelRouterModule } from '../modules/channels/router/channel-router.module';
 import { PostgresPersistenceModule } from '../modules/persistence/postgres/postgres-persistence.module';
 import { ToolsModule } from '../modules/tools/tools.module';
@@ -22,6 +23,7 @@ import { MaintenanceModule } from '../modules/maintenance/maintenance.module';
 import { PricingModule } from '../modules/pricing/pricing.module';
 import { EmailModule } from '../modules/email/email.module';
 import { SchedulingModule } from '../modules/scheduling/scheduling.module';
+import { GrowthModule } from '../modules/growth/growth.module';
 import { AuthModule } from '../modules/auth/auth.module';
 import { HealthModule } from '../modules/health/health.module';
 import { OpenAIEmbeddingsModule } from '../modules/embeddings/openai/openai-embeddings.module';
@@ -118,6 +120,13 @@ export function resolveModules(features: Features): Array<Type<unknown> | Dynami
   // ----- Agendamiento (tool schedule_call) -----
   if (features.tools.scheduleCall) {
     modules.push(SchedulingModule);
+  }
+
+  // ----- Growth (KPIs + asesor de analytics, solo dashboard/JWT) -----
+  // El LLM de analytics es un binding independiente del agente de chat.
+  if (features.growth) {
+    modules.push(AnalyticsLLMModule);
+    modules.push(GrowthModule);
   }
 
   return modules;

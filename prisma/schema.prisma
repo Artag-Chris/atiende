@@ -40,11 +40,13 @@ model Business {
   inboundMessages    InboundMessage[]
   responseCache      ResponseCache[]
   agentRuns          AgentRun[]
+  messages           Message[]
   knowledgeDocuments KnowledgeDocument[]
   businessUsers      BusinessUser[]
   channelAccounts    ChannelAccount[]
   quotes             Quote[]
   callRequests       CallRequest[]
+  growthAdvisorUsage GrowthAdvisorUsage[]
 
   @@index([archivedAt])
   @@map("businesses")
@@ -225,6 +227,8 @@ model Conversation {
   @@index([businessId, status, lastMessageAt])
   /// Soporta el barrido de expiración de escalaciones (status + inactividad).
   @@index([status, lastMessageAt])
+  /// Agregaciones de growth por ventana (groupBy channel, etc.).
+  @@index([businessId, createdAt])
   @@map("conversations")
 }
 
@@ -242,6 +246,9 @@ enum MessageRole {
 /// content_jsonb permite guardar mensajes multimodales (texto, imagen futura, tool_use blocks).
 model Message {
   id             String      @id @default(uuid()) @db.Uuid
+  /// Denormalizado (igual que AgentRun) para consultas tenant-scoped de
+  /// analytics sin JOIN a conversations. Fuente de verdad: Conversation.businessId.
+  businessId     String      @map("business_id") @db.Uuid
   conversationId String      @map("conversation_id") @db.Uuid
   role           MessageRole
   /// Contenido estructurado (Anthropic-compatible: array de content blocks).
@@ -253,10 +260,12 @@ model Message {
   inboundMessageId String?   @unique @map("inbound_message_id") @db.Uuid
   createdAt      DateTime    @default(now()) @map("created_at")
 
-  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  inboundMessage InboundMessage? @relation(fields: [inboundMessageId], references: [id], onDelete: SetNull)
+  business       Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  inboundMessage InboundMessage?  @relation(fields: [inboundMessageId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
+  @@index([businessId, role, createdAt])
   @@map("messages")
 }
 
@@ -394,6 +403,8 @@ model ResponseCache {
 
   @@index([businessId, embeddingModel, expiresAt])
   @@index([expiresAt]) // para job de cleanup
+  /// Hit-rate de growth por ventana (lastUsedAt >= since).
+  @@index([businessId, lastUsedAt])
   @@map("response_cache")
 }
 
@@ -626,6 +637,8 @@ model Quote {
   @@index([businessId, channel, customerIdentifier])
   @@index([conversationId])
   @@index([businessId, status, createdAt])
+  /// Agregaciones de growth por ventana (sum totalUsd, count).
+  @@index([businessId, createdAt])
   @@map("quotes")
 }
 
@@ -673,6 +686,32 @@ model CallRequest {
 
   @@index([businessId, channel, customerIdentifier])
   @@index([businessId, status, createdAt])
+  /// Conteo de leads de growth por ventana.
+  @@index([businessId, createdAt])
   @@map("call_requests")
+}
+
+// ============================================================================
+// GROWTH (asesor de analytics — presupuesto diario y auditoría de costos)
+// ============================================================================
+
+/// Cada pregunta respondida por el asesor de growth (una llamada al LLM de
+/// analytics). Base del presupuesto diario por business y de la auditoría de
+/// costos del asesor. Se separa de AgentRun (que es del agente de chat) para
+/// no mezclar métricas de dos pipelines distintos.
+model GrowthAdvisorUsage {
+  id          String   @id @default(uuid()) @db.Uuid
+  businessId  String   @map("business_id") @db.Uuid
+  model       String
+  llmProvider String   @map("llm_provider")
+  inputTokens Int      @map("input_tokens")
+  outputTokens Int     @map("output_tokens")
+  costUsd     Decimal  @map("cost_usd") @db.Decimal(10, 6)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@map("growth_advisor_usage")
 }
 

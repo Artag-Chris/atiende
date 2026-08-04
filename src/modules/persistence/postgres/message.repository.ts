@@ -12,12 +12,14 @@ export class MessageRepository {
 
   async save(data: {
     conversationId: string;
+    businessId: string;
     role: MessageRole;
     content: Record<string, unknown> | Array<Record<string, unknown>>;
     tokenUsage?: Record<string, unknown>;
     inboundMessageId?: string;
   }): Promise<Message & { created: boolean }> {
     const createData: Prisma.MessageCreateInput = {
+      business: { connect: { id: data.businessId } },
       conversation: { connect: { id: data.conversationId } },
       role: data.role,
       content: data.content as unknown as Prisma.JsonObject,

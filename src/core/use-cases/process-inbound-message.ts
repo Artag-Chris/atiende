@@ -192,6 +192,7 @@ export class ProcessInboundMessageUseCase {
 
         const savedUser = await ctx.messageRepo.save({
           conversationId: convo.id,
+          businessId: business.id,
           role: 'USER',
           content: [{ type: 'text', text: message.text }],
           inboundMessageId: inboundId,
@@ -367,6 +368,7 @@ export class ProcessInboundMessageUseCase {
     if (business && conversation) {
       await this.messageRepo.save({
         conversationId: conversation.id,
+        businessId: business.id,
         role: 'ASSISTANT',
         content: [{ type: 'text', text: finalText }],
         tokenUsage: {

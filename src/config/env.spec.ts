@@ -46,4 +46,35 @@ describe('EnvSchema cross-field validation', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('accepts FEATURE_GROWTH and GROWTH_ADVISOR_BUDGET_USD_DAY', () => {
+    const result = EnvSchema.safeParse({
+      ...baseEnv(),
+      FEATURE_GROWTH: 'true',
+      GROWTH_ADVISOR_BUDGET_USD_DAY: '2.5',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.FEATURE_GROWTH).toBe(true);
+      expect(result.data.GROWTH_ADVISOR_BUDGET_USD_DAY).toBe(2.5);
+    }
+  });
+
+  it('rejects ANALYTICS_LLM_PROVIDER=kimi without KIMI_API_KEY', () => {
+    const result = EnvSchema.safeParse({ ...baseEnv(), ANALYTICS_LLM_PROVIDER: 'kimi' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === 'KIMI_API_KEY');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('accepts ANALYTICS_LLM_PROVIDER=kimi with KIMI_API_KEY', () => {
+    const result = EnvSchema.safeParse({
+      ...baseEnv(),
+      ANALYTICS_LLM_PROVIDER: 'kimi',
+      KIMI_API_KEY: 'sk-kimi',
+    });
+    expect(result.success).toBe(true);
+  });
 });
