@@ -44,7 +44,8 @@ export class GrowthController {
     @Query('days') days?: string,
   ) {
     const user = this.assertAdmin(req.user as DashboardUser | undefined);
-    const filterBusinessId = user.role === 'SUPER_ADMIN' ? businessId : user.businessId;
+    const filterBusinessId =
+      user.role === 'SUPER_ADMIN' ? (businessId ?? user.businessId) : user.businessId;
     if (!filterBusinessId) {
       throw new ForbiddenException('Missing businessId');
     }

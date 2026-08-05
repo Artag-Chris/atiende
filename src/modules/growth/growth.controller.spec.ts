@@ -50,6 +50,12 @@ describe('GrowthController', () => {
       expect(analytics.getMetrics).toHaveBeenCalledWith('biz-2', 7);
     });
 
+    it('usa el businessId del JWT para SUPER_ADMIN sin query', async () => {
+      await controller.getMetrics(makeReq({ businessId: 'biz-1', role: 'SUPER_ADMIN' }));
+
+      expect(analytics.getMetrics).toHaveBeenCalledWith('biz-1', 30);
+    });
+
     it('ignora businessId query para un ADMIN', async () => {
       await controller.getMetrics(makeReq({ businessId: 'biz-1', role: 'ADMIN' }), 'biz-2');
 
