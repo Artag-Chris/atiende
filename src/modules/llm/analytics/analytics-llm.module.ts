@@ -5,6 +5,7 @@ import type { AIConfig, LLMProviderConfig } from '@config/ai.config';
 import type { LLMProviderPort } from '@core/ports/llm-provider.port';
 import { GroqAdapter } from '../groq/groq.adapter';
 import { KimiAdapter } from '../kimi/kimi.adapter';
+import { DeepSeekAdapter } from '../deepseek/deepseek.adapter';
 import { OpenAIAdapter } from '../openai/openai.adapter';
 import { GeminiAdapter } from '../gemini/gemini.adapter';
 import { MockLLMAdapter } from '../mock/mock-llm.adapter';
@@ -25,6 +26,8 @@ function createAnalyticsAdapter(
       return new GroqAdapter(config, configService);
     case 'kimi':
       return new KimiAdapter(config, configService);
+    case 'deepseek':
+      return new DeepSeekAdapter(config, configService);
     case 'openai':
       return new OpenAIAdapter(config);
     case 'gemini':

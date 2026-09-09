@@ -109,13 +109,37 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
     cacheWrite1hPer1M: 3.0,
     cacheReadPer1M: 0.3,
   },
+  // DeepSeek (OpenAI-compatible). deepseek-v4-flash: $0.14/M input, $0.28/M output.
+  // Cache automático (sin write extra): read se descuenta a la mitad del input,
+  // igual que el patrón de OpenAI. Verificar contra api-docs.deepseek.com/quick_start/pricing.
+  'deepseek-v4-flash': {
+    inputPer1M: 0.14,
+    outputPer1M: 0.28,
+    cacheWrite5mPer1M: 0.14,
+    cacheWrite1hPer1M: 0.14,
+    cacheReadPer1M: 0.07,
+  },
+  'deepseek-v4-pro': {
+    inputPer1M: 1.74,
+    outputPer1M: 3.48,
+    cacheWrite5mPer1M: 1.74,
+    cacheWrite1hPer1M: 1.74,
+    cacheReadPer1M: 0.87,
+  },
 };
 
 // ============================================================================
 // Tipos de configuración
 // ============================================================================
 
-export type LLMProviderName = 'claude' | 'openai' | 'gemini' | 'groq' | 'kimi' | 'mock';
+export type LLMProviderName =
+  | 'claude'
+  | 'openai'
+  | 'gemini'
+  | 'groq'
+  | 'kimi'
+  | 'deepseek'
+  | 'mock';
 
 export interface LLMProviderConfig {
   provider: LLMProviderName;
@@ -188,15 +212,20 @@ export function buildAIConfig(env: Env): AIConfig {
   const isPrimaryGemini = env.FEATURE_LLM_PRIMARY === 'gemini';
   const isPrimaryGroq = env.FEATURE_LLM_PRIMARY === 'groq';
   const isPrimaryKimi = env.FEATURE_LLM_PRIMARY === 'kimi';
+  const isPrimaryDeepSeek = env.FEATURE_LLM_PRIMARY === 'deepseek';
 
   const primary: LLMProviderConfig = {
     provider: env.FEATURE_LLM_PRIMARY,
     model: modelForProvider(env.FEATURE_LLM_PRIMARY, env),
     effort:
-      isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq || isPrimaryKimi
+      isPrimaryOpenAI || isPrimaryGemini || isPrimaryGroq || isPrimaryKimi || isPrimaryDeepSeek
         ? 'medium'
         : env.ANTHROPIC_EFFORT,
-    maxTokens: isPrimaryKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS,
+    maxTokens: isPrimaryKimi
+      ? env.KIMI_MAX_TOKENS
+      : isPrimaryDeepSeek
+        ? env.DEEPSEEK_MAX_TOKENS
+        : env.ANTHROPIC_MAX_TOKENS,
     timeoutMs: isPrimaryOpenAI
       ? env.OPENAI_TIMEOUT_MS
       : isPrimaryGemini
@@ -205,7 +234,9 @@ export function buildAIConfig(env: Env): AIConfig {
           ? env.GROQ_TIMEOUT_MS
           : isPrimaryKimi
             ? env.KIMI_TIMEOUT_MS
-            : env.ANTHROPIC_TIMEOUT_MS,
+            : isPrimaryDeepSeek
+              ? env.DEEPSEEK_TIMEOUT_MS
+              : env.ANTHROPIC_TIMEOUT_MS,
     maxRetries: isPrimaryOpenAI
       ? env.OPENAI_MAX_RETRIES
       : isPrimaryGemini
@@ -214,7 +245,9 @@ export function buildAIConfig(env: Env): AIConfig {
           ? env.GROQ_MAX_RETRIES
           : isPrimaryKimi
             ? env.KIMI_MAX_RETRIES
-            : env.ANTHROPIC_MAX_RETRIES,
+            : isPrimaryDeepSeek
+              ? env.DEEPSEEK_MAX_RETRIES
+              : env.ANTHROPIC_MAX_RETRIES,
   };
 
   return {
@@ -248,12 +281,18 @@ export function buildAIConfig(env: Env): AIConfig {
 export function buildAnalyticsConfig(env: Env, primary: LLMProviderConfig): LLMProviderConfig {
   const provider = env.ANALYTICS_LLM_PROVIDER ?? primary.provider;
   const isKimi = provider === 'kimi';
+  const isDeepSeek = provider === 'deepseek';
   return {
     provider,
     model: env.ANALYTICS_LLM_MODEL ?? modelForProvider(provider, env),
     effort: 'medium',
     maxTokens:
-      env.ANALYTICS_LLM_MAX_TOKENS ?? (isKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS),
+      env.ANALYTICS_LLM_MAX_TOKENS ??
+      (isKimi
+        ? env.KIMI_MAX_TOKENS
+        : isDeepSeek
+          ? env.DEEPSEEK_MAX_TOKENS
+          : env.ANTHROPIC_MAX_TOKENS),
     timeoutMs:
       env.ANALYTICS_LLM_TIMEOUT_MS ??
       (provider === 'openai'
@@ -264,7 +303,9 @@ export function buildAnalyticsConfig(env: Env, primary: LLMProviderConfig): LLMP
             ? env.GROQ_TIMEOUT_MS
             : isKimi
               ? env.KIMI_TIMEOUT_MS
-              : env.ANTHROPIC_TIMEOUT_MS),
+              : isDeepSeek
+                ? env.DEEPSEEK_TIMEOUT_MS
+                : env.ANTHROPIC_TIMEOUT_MS),
     maxRetries: env.ANALYTICS_LLM_MAX_RETRIES ?? primary.maxRetries,
   };
 }
@@ -276,11 +317,16 @@ function buildFallbackConfig(env: Env): LLMProviderConfig | null {
   const isGemini = fallback === 'gemini';
   const isGroq = fallback === 'groq';
   const isKimi = fallback === 'kimi';
+  const isDeepSeek = fallback === 'deepseek';
   return {
     provider: fallback,
     model: modelForProvider(fallback, env),
     effort: 'medium',
-    maxTokens: isKimi ? env.KIMI_MAX_TOKENS : env.ANTHROPIC_MAX_TOKENS,
+    maxTokens: isKimi
+      ? env.KIMI_MAX_TOKENS
+      : isDeepSeek
+        ? env.DEEPSEEK_MAX_TOKENS
+        : env.ANTHROPIC_MAX_TOKENS,
     timeoutMs: isOpenAI
       ? env.OPENAI_TIMEOUT_MS
       : isGemini
@@ -289,7 +335,9 @@ function buildFallbackConfig(env: Env): LLMProviderConfig | null {
           ? env.GROQ_TIMEOUT_MS
           : isKimi
             ? env.KIMI_TIMEOUT_MS
-            : env.ANTHROPIC_TIMEOUT_MS,
+            : isDeepSeek
+              ? env.DEEPSEEK_TIMEOUT_MS
+              : env.ANTHROPIC_TIMEOUT_MS,
     maxRetries: isOpenAI
       ? env.OPENAI_MAX_RETRIES
       : isGemini
@@ -298,7 +346,9 @@ function buildFallbackConfig(env: Env): LLMProviderConfig | null {
           ? env.GROQ_MAX_RETRIES
           : isKimi
             ? env.KIMI_MAX_RETRIES
-            : env.ANTHROPIC_MAX_RETRIES,
+            : isDeepSeek
+              ? env.DEEPSEEK_MAX_RETRIES
+              : env.ANTHROPIC_MAX_RETRIES,
   };
 }
 
@@ -314,6 +364,8 @@ function modelForProvider(provider: LLMProviderName, env: Env): string {
       return env.GROQ_MODEL;
     case 'kimi':
       return env.KIMI_MODEL;
+    case 'deepseek':
+      return env.DEEPSEEK_MODEL;
     case 'mock':
       return 'mock';
   }

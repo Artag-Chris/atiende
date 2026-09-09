@@ -8,6 +8,7 @@ import type { LLMProviderName } from '@config/ai.config';
 import type { LLMProviderPort } from '@core/ports/llm-provider.port';
 import { GroqAdapter } from '../groq/groq.adapter';
 import { KimiAdapter } from '../kimi/kimi.adapter';
+import { DeepSeekAdapter } from '../deepseek/deepseek.adapter';
 import { OpenAIAdapter } from '../openai/openai.adapter';
 import { GeminiAdapter } from '../gemini/gemini.adapter';
 import { MockLLMAdapter } from '../mock/mock-llm.adapter';
@@ -20,6 +21,8 @@ function adapterClassFor(provider: LLMProviderName): Type<LLMProviderPort> {
       return GroqAdapter;
     case 'kimi':
       return KimiAdapter;
+    case 'deepseek':
+      return DeepSeekAdapter;
     case 'openai':
       return OpenAIAdapter;
     case 'gemini':

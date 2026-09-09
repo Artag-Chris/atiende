@@ -92,13 +92,22 @@ export const EnvSchema = z
     KIMI_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
 
     // ============================================================
-    // 5e. ANALYTICS LLM (asesor de growth — SEPARADO del agente de chat)
+    // 5e. DEEPSEEK (OpenAI-compatible, modelo flash rápido y barato)
+    // ============================================================
+    DEEPSEEK_API_KEY: z.string().optional(),
+    DEEPSEEK_MODEL: z.string().default('deepseek-v4-flash'),
+    DEEPSEEK_MAX_TOKENS: z.coerce.number().int().positive().default(4096),
+    DEEPSEEK_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
+    DEEPSEEK_MAX_RETRIES: z.coerce.number().int().min(0).default(3),
+
+    // ============================================================
+    // 5f. ANALYTICS LLM (asesor de growth — SEPARADO del agente de chat)
     // ============================================================
     // Modelo/proveedor independiente para análisis y proyecciones del asesor
     // de growth. Sin configurar, hereda el provider primario del agente. Esto
     // permite cambiar a otra IA para analytics sin tocar el pipeline del chat.
     ANALYTICS_LLM_PROVIDER: z
-      .enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'mock'])
+      .enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'deepseek', 'mock'])
       .optional(),
     ANALYTICS_LLM_MODEL: z.string().optional(),
     ANALYTICS_LLM_MAX_TOKENS: z.coerce.number().int().positive().optional(),
@@ -227,10 +236,13 @@ export const EnvSchema = z
     // 14-17. FEATURE FLAGS (consumidos por src/config/features.ts)
     // ============================================================
     FEATURE_LLM_PRIMARY: z
-      .enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'mock'])
+      .enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'deepseek', 'mock'])
       .default('claude'),
     FEATURE_LLM_FALLBACK: z
-      .union([z.enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'mock']), z.literal('')])
+      .union([
+        z.enum(['claude', 'openai', 'gemini', 'groq', 'kimi', 'deepseek', 'mock']),
+        z.literal(''),
+      ])
       .default(''),
     FEATURE_AI_PROMPT_CACHING: boolFromEnv.default(true),
     FEATURE_AI_COMPACTION: boolFromEnv.default(true),
@@ -335,6 +347,25 @@ export const EnvSchema = z
         code: z.ZodIssueCode.custom,
         path: ['KIMI_API_KEY'],
         message: 'KIMI_API_KEY is required when ANALYTICS_LLM_PROVIDER is "kimi"',
+      });
+    }
+    // Mismo motivo para deepseek: el SDK de OpenAI no debe resolver la key a
+    // otro proveedor cuando las llamadas van dirigidas al endpoint de DeepSeek.
+    const usesDeepSeek =
+      env.FEATURE_LLM_PRIMARY === 'deepseek' || env.FEATURE_LLM_FALLBACK === 'deepseek';
+    if (usesDeepSeek && !env.DEEPSEEK_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DEEPSEEK_API_KEY'],
+        message:
+          'DEEPSEEK_API_KEY is required when FEATURE_LLM_PRIMARY or FEATURE_LLM_FALLBACK is "deepseek"',
+      });
+    }
+    if (env.ANALYTICS_LLM_PROVIDER === 'deepseek' && !env.DEEPSEEK_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DEEPSEEK_API_KEY'],
+        message: 'DEEPSEEK_API_KEY is required when ANALYTICS_LLM_PROVIDER is "deepseek"',
       });
     }
   });

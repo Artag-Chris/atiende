@@ -77,4 +77,58 @@ describe('EnvSchema cross-field validation', () => {
     });
     expect(result.success).toBe(true);
   });
+
+  it('rejects deepseek as primary without DEEPSEEK_API_KEY', () => {
+    const result = EnvSchema.safeParse({ ...baseEnv(), FEATURE_LLM_PRIMARY: 'deepseek' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === 'DEEPSEEK_API_KEY');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('accepts deepseek as primary with DEEPSEEK_API_KEY', () => {
+    const result = EnvSchema.safeParse({
+      ...baseEnv(),
+      FEATURE_LLM_PRIMARY: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects deepseek as fallback without DEEPSEEK_API_KEY', () => {
+    const result = EnvSchema.safeParse({ ...baseEnv(), FEATURE_LLM_FALLBACK: 'deepseek' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === 'DEEPSEEK_API_KEY');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('accepts deepseek as primary with DEEPSEEK_API_KEY', () => {
+    const result = EnvSchema.safeParse({
+      ...baseEnv(),
+      FEATURE_LLM_PRIMARY: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects ANALYTICS_LLM_PROVIDER=deepseek without DEEPSEEK_API_KEY', () => {
+    const result = EnvSchema.safeParse({ ...baseEnv(), ANALYTICS_LLM_PROVIDER: 'deepseek' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path[0] === 'DEEPSEEK_API_KEY');
+      expect(issue).toBeDefined();
+    }
+  });
+
+  it('accepts ANALYTICS_LLM_PROVIDER=deepseek with DEEPSEEK_API_KEY', () => {
+    const result = EnvSchema.safeParse({
+      ...baseEnv(),
+      ANALYTICS_LLM_PROVIDER: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+    });
+    expect(result.success).toBe(true);
+  });
 });

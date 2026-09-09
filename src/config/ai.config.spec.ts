@@ -39,6 +39,30 @@ describe('buildAIConfig maxTokens per provider', () => {
     expect(buildAIConfig(env).primary.maxTokens).toBe(4096);
   });
 
+  it('uses DEEPSEEK_MAX_TOKENS when deepseek is primary', () => {
+    const env = buildEnv({
+      FEATURE_LLM_PRIMARY: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_MAX_TOKENS: '8192',
+      ANTHROPIC_MAX_TOKENS: '4096',
+    });
+    const config = buildAIConfig(env);
+    expect(config.primary.maxTokens).toBe(8192);
+    expect(config.primary.timeoutMs).toBe(60000);
+    expect(config.primary.model).toBe('deepseek-v4-flash');
+  });
+
+  it('uses DEEPSEEK_MAX_TOKENS when deepseek is fallback', () => {
+    const env = buildEnv({
+      FEATURE_LLM_PRIMARY: 'groq',
+      FEATURE_LLM_FALLBACK: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_MAX_TOKENS: '6144',
+      ANTHROPIC_MAX_TOKENS: '4096',
+    });
+    expect(buildAIConfig(env).fallback?.maxTokens).toBe(6144);
+  });
+
   it('uses KIMI_MAX_TOKENS when kimi is fallback', () => {
     const env = buildEnv({
       FEATURE_LLM_PRIMARY: 'groq',
@@ -101,6 +125,19 @@ describe('buildAIConfig analytics (LLM del asesor de growth)', () => {
       ANTHROPIC_MAX_TOKENS: '4096',
     });
     expect(buildAIConfig(env).analytics.maxTokens).toBe(8192);
+  });
+
+  it('usa DEEPSEEK_MAX_TOKENS cuando analytics apunta a deepseek', () => {
+    const env = buildEnv({
+      FEATURE_LLM_PRIMARY: 'groq',
+      ANALYTICS_LLM_PROVIDER: 'deepseek',
+      DEEPSEEK_API_KEY: 'sk-deepseek',
+      DEEPSEEK_MAX_TOKENS: '8192',
+      ANTHROPIC_MAX_TOKENS: '4096',
+    });
+    const analytics = buildAIConfig(env).analytics;
+    expect(analytics.maxTokens).toBe(8192);
+    expect(analytics.provider).toBe('deepseek');
   });
 
   it('mantiene el provider del agente intacto al configurar analytics', () => {

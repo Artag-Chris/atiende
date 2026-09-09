@@ -9,6 +9,7 @@ import { OpenAIModule } from '../modules/llm/openai/openai.module';
 import { GeminiModule } from '../modules/llm/gemini/gemini.module';
 import { GroqModule } from '../modules/llm/groq/groq.module';
 import { KimiModule } from '../modules/llm/kimi/kimi.module';
+import { DeepSeekModule } from '../modules/llm/deepseek/deepseek.module';
 import { MockLLMModule } from '../modules/llm/mock/mock-llm.module';
 import { LLMRouterModule } from '../modules/llm/router/llm-router.module';
 import { AnalyticsLLMModule } from '../modules/llm/analytics/analytics-llm.module';
@@ -142,6 +143,8 @@ function providerModuleFor(provider: LLMProviderName): Type<unknown> {
       return GroqModule;
     case 'kimi':
       return KimiModule;
+    case 'deepseek':
+      return DeepSeekModule;
     default:
       // 'claude' (sin adapter implementado) y 'mock' caen al mock.
       return MockLLMModule;
