@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaDbClient, PrismaService } from './prisma.service';
 import type { Message, MessageRole } from '@prisma/client';
-import type { InboundActivityItem } from '@core/ports/message-repository.port';
+import type { InboundActivityItem, MessageData } from '@core/ports/message-repository.port';
 import type { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -77,6 +77,38 @@ export class MessageRepository {
       customerIdentifier: row.conversation.customerIdentifier,
       customerName: row.conversation.customerName,
     }));
+  }
+
+  async findPage(
+    conversationId: string,
+    options: { before?: Date; limit?: number } = {},
+  ): Promise<{ messages: MessageData[]; hasMore: boolean }> {
+    const limit = options.limit ?? 50;
+
+    const rows = await this.prisma.message.findMany({
+      where: {
+        conversationId,
+        ...(options.before ? { createdAt: { lt: options.before } } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1,
+    });
+
+    // Pedimos un extra para saber si quedan mensajes más viejos.
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit).reverse();
+
+    return {
+      messages: page.map((row) => ({
+        id: row.id,
+        conversationId: row.conversationId,
+        role: row.role,
+        content: row.content,
+        tokenUsage: row.tokenUsage,
+        createdAt: row.createdAt,
+      })),
+      hasMore,
+    };
   }
 
   async findRecent(conversationId: string, limit: number = 20): Promise<Message[]> {

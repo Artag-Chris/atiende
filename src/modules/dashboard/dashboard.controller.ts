@@ -22,9 +22,15 @@ import {
   MESSAGE_REPOSITORY_TOKEN,
   EMAIL_SENDER_TOKEN,
 } from '@core/tokens';
-import type { ConversationRepositoryPort } from '@core/ports/conversation-repository.port';
+import type {
+  ConversationRepositoryPort,
+  ConversationListFilter,
+  ConversationStatus,
+} from '@core/ports/conversation-repository.port';
 import type { MessageRepositoryPort } from '@core/ports/message-repository.port';
 import type { EmailSenderPort } from '@core/ports/email-sender.port';
+import type { Channel } from '@core/domain/types';
+import { extractMessageText } from '@core/utils/message-text';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChannelRouterService } from '../channels/router/channel-router.service';
 
@@ -32,18 +38,41 @@ const MAX_REPLY_TEXT_LENGTH = 1000;
 const MAX_EMAIL_SUBJECT_LENGTH = 200;
 const MAX_EMAIL_BODY_LENGTH = 10_000;
 
-/** Extrae el texto legible del content de un mensaje (blocks Anthropic o string). */
-function extractMessageText(content: unknown): string {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content
-      .map((block) =>
-        block && typeof block === 'object' && block.type === 'text' ? block.text : '',
-      )
-      .filter(Boolean)
-      .join('\n');
-  }
-  return '';
+const DEFAULT_LIST_LIMIT = 25;
+const MAX_LIST_LIMIT = 100;
+const DEFAULT_MESSAGE_LIMIT = 50;
+const MAX_MESSAGE_LIMIT = 200;
+
+const CONVERSATION_STATUSES: readonly string[] = ['ACTIVE', 'ESCALATED', 'RESOLVED', 'ABANDONED'];
+
+const CHANNELS: readonly string[] = ['whatsapp', 'web_chat', 'telegram', 'instagram', 'messenger'];
+
+/** Parsea `status=ACTIVE,ESCALATED`; descarta valores desconocidos. */
+function parseStatuses(raw?: string): ConversationStatus[] | undefined {
+  if (!raw) return undefined;
+  const statuses = raw
+    .split(',')
+    .map((value) => value.trim().toUpperCase())
+    .filter((value): value is ConversationStatus => CONVERSATION_STATUSES.includes(value));
+  return statuses.length > 0 ? statuses : undefined;
+}
+
+/** Parsea el canal del dominio; ignora valores desconocidos. */
+function parseChannel(raw?: string): Channel | undefined {
+  if (!raw) return undefined;
+  const value = raw.trim().toLowerCase();
+  return CHANNELS.includes(value) ? (value as Channel) : undefined;
+}
+
+function clampLimit(raw: string | undefined, fallback: number, max: number): number {
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 1) return fallback;
+  return Math.min(Math.floor(value), max);
+}
+
+function parseOffset(raw?: string): number {
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -142,11 +171,77 @@ export class DashboardController {
     return { data: items, total: items.length };
   }
 
+  /**
+   * Exploradora de chats (solo lectura): TODAS las conversaciones del tenant,
+   * en cualquier estado, con filtros y paginación.
+   */
+  @Get('conversations')
+  async listConversations(
+    @Req() req: Request,
+    @Query('businessId') businessId?: string,
+    @Query('status') status?: string,
+    @Query('channel') channel?: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+    const filterBusinessId = user?.role === 'SUPER_ADMIN' ? businessId : user?.businessId;
+    const limitNum = clampLimit(limit, DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT);
+    const offsetNum = parseOffset(offset);
+    const search = q?.trim();
+
+    const filter: ConversationListFilter = {
+      statuses: parseStatuses(status),
+      channel: parseChannel(channel),
+      search: search ? search : undefined,
+      limit: limitNum,
+      offset: offsetNum,
+    };
+
+    const { data, total } = await this.conversationRepo.findAll(filterBusinessId, filter);
+
+    return {
+      data: data.map((conversation) => ({
+        id: conversation.id,
+        channel: conversation.channel,
+        customerIdentifier: conversation.customerIdentifier,
+        customerName: conversation.customerName ?? null,
+        status: conversation.status,
+        unreadCount: conversation.unreadCount ?? 0,
+        lastMessageAt: conversation.lastMessageAt ?? null,
+        lastMessageText: conversation.lastMessageText,
+        lastMessageRole: conversation.lastMessageRole,
+      })),
+      total,
+      limit: limitNum,
+      offset: offsetNum,
+    };
+  }
+
   @Get('conversations/:id')
-  async getConversation(@Param('id') id: string, @Req() req: Request) {
+  async getConversation(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('before') before?: string,
+    @Query('limit') limit?: string,
+  ) {
     const conversation = await this.assertAccessible(id, req);
-    const messages = await this.messageRepo.findRecent(id, 50);
-    return { conversation, messages };
+
+    let beforeDate: Date | undefined;
+    if (before) {
+      beforeDate = new Date(before);
+      if (Number.isNaN(beforeDate.getTime())) {
+        throw new BadRequestException('El parámetro before debe ser una fecha ISO válida');
+      }
+    }
+
+    const { messages, hasMore } = await this.messageRepo.findPage(id, {
+      before: beforeDate,
+      limit: clampLimit(limit, DEFAULT_MESSAGE_LIMIT, MAX_MESSAGE_LIMIT),
+    });
+
+    return { conversation, messages, hasMore };
   }
 
   @Post('conversations/:id/read')

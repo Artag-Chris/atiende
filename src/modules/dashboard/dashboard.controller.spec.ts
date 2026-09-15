@@ -21,6 +21,7 @@ function createConversationRepo() {
     updateStatus: vi.fn(),
     findEscalated: vi.fn().mockResolvedValue([]),
     findPending: vi.fn().mockResolvedValue([]),
+    findAll: vi.fn().mockResolvedValue({ data: [], total: 0 }),
     incrementUnread: vi.fn(),
     resetUnread: vi.fn(),
   } as unknown as ConversationRepositoryPort;
@@ -30,6 +31,7 @@ function createMessageRepo() {
   return {
     save: vi.fn(),
     findRecent: vi.fn().mockResolvedValue([]),
+    findPage: vi.fn().mockResolvedValue({ messages: [], hasMore: false }),
     findInboundActivity: vi.fn().mockResolvedValue([]),
   } as unknown as MessageRepositoryPort;
 }
@@ -268,6 +270,103 @@ describe('DashboardController', () => {
     });
   });
 
+  describe('listConversations', () => {
+    it('scopes the explorer to the JWT businessId and forwards filters', async () => {
+      conversationRepo.findAll = vi.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'conv-1',
+            businessId: 'biz-1',
+            channel: 'whatsapp',
+            customerIdentifier: '573001234567',
+            customerName: 'Ana',
+            status: 'RESOLVED',
+            unreadCount: 0,
+            lastMessageAt: new Date('2026-01-02T00:00:00Z'),
+            lastMessageText: 'gracias',
+            lastMessageRole: 'ASSISTANT',
+          },
+        ],
+        total: 1,
+      });
+
+      const result = await controller.listConversations(
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        undefined,
+        'active,resolved',
+        'whatsapp',
+        '  ana  ',
+        '10',
+        '20',
+      );
+
+      expect(conversationRepo.findAll).toHaveBeenCalledWith('biz-1', {
+        statuses: ['ACTIVE', 'RESOLVED'],
+        channel: 'whatsapp',
+        search: 'ana',
+        limit: 10,
+        offset: 20,
+      });
+      expect(result).toEqual({
+        data: [
+          expect.objectContaining({
+            id: 'conv-1',
+            channel: 'whatsapp',
+            status: 'RESOLVED',
+            lastMessageText: 'gracias',
+            lastMessageRole: 'ASSISTANT',
+          }),
+        ],
+        total: 1,
+        limit: 10,
+        offset: 20,
+      });
+    });
+
+    it('applies defaults and drops unknown status/channel values', async () => {
+      await controller.listConversations(
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        undefined,
+        'BOGUS',
+        'carrier-pigeon',
+      );
+
+      expect(conversationRepo.findAll).toHaveBeenCalledWith('biz-1', {
+        statuses: undefined,
+        channel: undefined,
+        search: undefined,
+        limit: 25,
+        offset: 0,
+      });
+    });
+
+    it('clamps limit and ignores negative offsets', async () => {
+      await controller.listConversations(
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        '9999',
+        '-5',
+      );
+
+      expect(conversationRepo.findAll).toHaveBeenCalledWith(
+        'biz-1',
+        expect.objectContaining({ limit: 100, offset: 0 }),
+      );
+    });
+
+    it('lets SUPER_ADMIN override businessId via query param', async () => {
+      await controller.listConversations(
+        makeReq({ businessId: 'biz-1', role: 'SUPER_ADMIN' }),
+        'biz-2',
+      );
+
+      expect(conversationRepo.findAll).toHaveBeenCalledWith('biz-2', expect.any(Object));
+    });
+  });
+
   describe('getConversation', () => {
     it('returns conversation and messages for same-business user', async () => {
       const conversation = {
@@ -278,7 +377,7 @@ describe('DashboardController', () => {
         status: 'ACTIVE',
       };
       conversationRepo.findById = vi.fn().mockResolvedValue(conversation);
-      messageRepo.findRecent = vi.fn().mockResolvedValue([{ id: 'm1' }]);
+      messageRepo.findPage = vi.fn().mockResolvedValue({ messages: [{ id: 'm1' }], hasMore: true });
 
       const result = await controller.getConversation(
         'conv-1',
@@ -287,7 +386,55 @@ describe('DashboardController', () => {
 
       expect(result.conversation).toBe(conversation);
       expect(result.messages).toHaveLength(1);
-      expect(messageRepo.findRecent).toHaveBeenCalledWith('conv-1', 50);
+      expect(result.hasMore).toBe(true);
+      expect(messageRepo.findPage).toHaveBeenCalledWith('conv-1', {
+        before: undefined,
+        limit: 50,
+      });
+    });
+
+    it('pages older history with the before cursor', async () => {
+      conversationRepo.findById = vi.fn().mockResolvedValue({
+        id: 'conv-1',
+        businessId: 'biz-1',
+        channel: 'WHATSAPP',
+        customerIdentifier: 'x',
+        status: 'ACTIVE',
+      });
+      messageRepo.findPage = vi.fn().mockResolvedValue({ messages: [], hasMore: false });
+
+      const before = '2026-01-01T00:00:00.000Z';
+      const result = await controller.getConversation(
+        'conv-1',
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        before,
+        '10',
+      );
+
+      expect(messageRepo.findPage).toHaveBeenCalledWith('conv-1', {
+        before: new Date(before),
+        limit: 10,
+      });
+      expect(result.hasMore).toBe(false);
+    });
+
+    it('rejects an unparseable before cursor', async () => {
+      conversationRepo.findById = vi.fn().mockResolvedValue({
+        id: 'conv-1',
+        businessId: 'biz-1',
+        channel: 'WHATSAPP',
+        customerIdentifier: 'x',
+        status: 'ACTIVE',
+      });
+
+      await expect(
+        controller.getConversation(
+          'conv-1',
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+          'not-a-date',
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(messageRepo.findPage).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when conversation does not exist', async () => {

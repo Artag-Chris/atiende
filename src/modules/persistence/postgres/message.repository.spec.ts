@@ -154,6 +154,65 @@ describe('MessageRepository', () => {
     });
   });
 
+  describe('findPage', () => {
+    it('returns the newest page in chronological order with hasMore=false', async () => {
+      const rows = [
+        { ...mockMessage, id: 'c', createdAt: new Date('2026-01-03T00:00:00Z') },
+        { ...mockMessage, id: 'b', createdAt: new Date('2026-01-02T00:00:00Z') },
+      ];
+      prisma.message.findMany.mockResolvedValue(rows);
+
+      const result = await repo.findPage('conv-1', { limit: 2 });
+
+      expect(prisma.message.findMany).toHaveBeenCalledWith({
+        where: { conversationId: 'conv-1' },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+      });
+      expect(result.hasMore).toBe(false);
+      expect(result.messages.map((m) => m.id)).toEqual(['b', 'c']);
+    });
+
+    it('filters by the exclusive before cursor', async () => {
+      prisma.message.findMany.mockResolvedValue([]);
+
+      const before = new Date('2026-01-02T00:00:00Z');
+      await repo.findPage('conv-1', { before, limit: 50 });
+
+      expect(prisma.message.findMany).toHaveBeenCalledWith({
+        where: { conversationId: 'conv-1', createdAt: { lt: before } },
+        orderBy: { createdAt: 'desc' },
+        take: 51,
+      });
+    });
+
+    it('trims the extra row and reports hasMore=true when more remain', async () => {
+      prisma.message.findMany.mockResolvedValue([
+        { ...mockMessage, id: 'd' },
+        { ...mockMessage, id: 'c' },
+        { ...mockMessage, id: 'b' },
+      ]);
+
+      const result = await repo.findPage('conv-1', { limit: 2 });
+
+      expect(result.hasMore).toBe(true);
+      expect(result.messages).toHaveLength(2);
+      expect(result.messages.map((m) => m.id)).toEqual(['c', 'd']);
+    });
+
+    it('defaults to a 50-message page', async () => {
+      prisma.message.findMany.mockResolvedValue([]);
+
+      await repo.findPage('conv-1');
+
+      expect(prisma.message.findMany).toHaveBeenCalledWith({
+        where: { conversationId: 'conv-1' },
+        orderBy: { createdAt: 'desc' },
+        take: 51,
+      });
+    });
+  });
+
   describe('findInboundActivity', () => {
     it('scopes to business and returns flattened activity rows', async () => {
       prisma.message.findMany.mockResolvedValue([

@@ -28,6 +28,15 @@ export interface MessageRepositoryPort {
     inboundMessageId?: string;
   }): Promise<MessageData & { created: boolean }>;
   findRecent(conversationId: string, limit?: number): Promise<MessageData[]>;
+  /**
+   * Página de historial en orden cronológico ascendente.
+   * `before` es exclusivo: devuelve los mensajes anteriores (para "cargar más").
+   * `hasMore` indica si quedan mensajes más viejos.
+   */
+  findPage(
+    conversationId: string,
+    options?: { before?: Date; limit?: number },
+  ): Promise<{ messages: MessageData[]; hasMore: boolean }>;
   /** Mensajes USER entrantes recientes (notificaciones de escritura del dashboard). */
   findInboundActivity(
     businessId: string | undefined,

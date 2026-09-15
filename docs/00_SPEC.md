@@ -143,7 +143,8 @@ Complementa el catálogo (que es estructurado: productos con precio/stock) con d
 ### Dashboard (web)
 
 - **FR-17:** Dashboard web muestra por business: conversaciones activas, mensajes/día, costo/día (tokens × precio modelo), tasa de escalamiento.
-- **FR-18:** Dashboard permite ver el detalle de cualquier conversación.
+- **FR-18:** Dashboard permite ver el detalle de cualquier conversación. El historial se pagina (cursor `before` + `hasMore`) para poder leer conversaciones largas completas.
+- **FR-18b:** Dashboard incluye una exploradora de chats **de solo lectura**: lista todas las conversaciones del business en cualquier estado (`ACTIVE` / `ESCALATED` / `RESOLVED` / `ABANDONED`), filtrable por estado, canal y búsqueda por nombre/identificador, paginada. No permite responder — el envío humano sigue restringido a conversaciones `ESCALATED` (FR-19).
 - **FR-19:** Dashboard permite tomar el control de una conversación escalada y enviar mensajes manualmente.
 
 ### Configuración

@@ -11,6 +11,23 @@ export interface ConversationData {
   lastMessageAt?: Date | null;
 }
 
+export type ConversationStatus = 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED';
+
+/** Fila de la exploradora de chats: conversación + preview del último mensaje. */
+export interface ConversationListItem extends ConversationData {
+  lastMessageText: string | null;
+  lastMessageRole: string | null;
+}
+
+export interface ConversationListFilter {
+  statuses?: ConversationStatus[];
+  channel?: Channel;
+  /** Búsqueda libre sobre customerName / customerIdentifier (case-insensitive). */
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface ConversationRepositoryPort {
   getOrCreate(
     businessId: string,
@@ -30,6 +47,14 @@ export interface ConversationRepositoryPort {
     businessId?: string,
     options?: { limit?: number; offset?: number },
   ): Promise<ConversationData[]>;
+  /**
+   * Lista TODAS las conversaciones del tenant (cualquier status) con filtros
+   * opcionales, ordenadas por actividad reciente. Incluye `total` para paginar.
+   */
+  findAll(
+    businessId?: string,
+    filter?: ConversationListFilter,
+  ): Promise<{ data: ConversationListItem[]; total: number }>;
   /**
    * Conversaciones con mensajes sin leer para el dashboard.
    * Excluye RESOLVED/ABANDONED.

@@ -1,9 +1,14 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaDbClient, PrismaService } from './prisma.service';
-import type { Conversation, ConversationUrgency } from '@prisma/client';
+import type { Conversation, ConversationUrgency, Prisma } from '@prisma/client';
 import { toDomainChannel, toPrismaChannel } from './channel.mapper';
-import type { ConversationData } from '@core/ports/conversation-repository.port';
+import type {
+  ConversationData,
+  ConversationListItem,
+  ConversationListFilter,
+} from '@core/ports/conversation-repository.port';
 import type { Channel } from '@core/domain/types';
+import { extractMessageText } from '@core/utils/message-text';
 
 @Injectable()
 export class ConversationRepository {
@@ -101,6 +106,44 @@ export class ConversationRepository {
     return rows.map((r) => this.toDomain(r));
   }
 
+  async findAll(
+    businessId?: string,
+    filter: ConversationListFilter = {},
+  ): Promise<{ data: ConversationListItem[]; total: number }> {
+    const where: Prisma.ConversationWhereInput = {
+      ...(businessId ? { businessId } : {}),
+      ...(filter.statuses?.length ? { status: { in: filter.statuses } } : {}),
+      ...(filter.channel ? { channel: toPrismaChannel(filter.channel) } : {}),
+      ...(filter.search
+        ? {
+            OR: [
+              { customerName: { contains: filter.search, mode: 'insensitive' } },
+              { customerIdentifier: { contains: filter.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [rows, total] = await Promise.all([
+      this.prisma.conversation.findMany({
+        where,
+        orderBy: [{ lastMessageAt: 'desc' }, { createdAt: 'desc' }],
+        take: filter.limit ?? 25,
+        skip: filter.offset ?? 0,
+        include: {
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: { role: true, content: true },
+          },
+        },
+      }),
+      this.prisma.conversation.count({ where }),
+    ]);
+
+    return { data: rows.map((r) => this.toListItem(r)), total };
+  }
+
   async updateStatus(
     id: string,
     status: 'ACTIVE' | 'ESCALATED' | 'RESOLVED' | 'ABANDONED',
@@ -140,6 +183,17 @@ export class ConversationRepository {
       customerName: row.customerName,
       unreadCount: row.unreadCount,
       lastMessageAt: row.lastMessageAt,
+    };
+  }
+
+  private toListItem(
+    row: Conversation & { messages: { role: string; content: unknown }[] },
+  ): ConversationListItem {
+    const last = row.messages[0];
+    return {
+      ...this.toDomain(row),
+      lastMessageText: last ? extractMessageText(last.content) : null,
+      lastMessageRole: last?.role ?? null,
     };
   }
 }
