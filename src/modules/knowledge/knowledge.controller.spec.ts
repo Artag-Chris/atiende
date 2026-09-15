@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import type { Request } from 'express';
 import { KnowledgeController } from './knowledge.controller';
 import { KnowledgeService } from './knowledge.service';
@@ -79,6 +79,76 @@ describe('KnowledgeController', () => {
       expect(service.ingestFromFile).toHaveBeenCalledWith(
         expect.objectContaining({ title: 'Catálogo 2026' }),
       );
+    });
+
+    it('accepts a .md file and resolves the mime type from the extension', async () => {
+      const mdFile = {
+        originalname: 'precios.md',
+        mimetype: 'application/octet-stream',
+        buffer: Buffer.from('# Precios\n\nWeb: 1500'),
+      } as Express.Multer.File;
+
+      await controller.uploadFile(makeReq({ businessId: 'biz-1', role: 'ADMIN' }), mdFile, {
+        kind: 'NOTES',
+      });
+
+      expect(service.ingestFromFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: 'precios.md',
+          mimeType: 'text/markdown',
+          kind: 'NOTES',
+        }),
+      );
+    });
+
+    it('accepts a .xlsx file', async () => {
+      const xlsxFile = {
+        originalname: 'servicios.xlsx',
+        mimetype: 'application/octet-stream',
+        buffer: Buffer.from('xlsx'),
+      } as Express.Multer.File;
+
+      await controller.uploadFile(makeReq({ businessId: 'biz-1', role: 'ADMIN' }), xlsxFile, {
+        kind: 'NOTES',
+      });
+
+      expect(service.ingestFromFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
+      );
+    });
+
+    it('rejects an unsupported extension with BadRequest', async () => {
+      const exeFile = {
+        originalname: 'malware.exe',
+        mimetype: 'application/x-msdownload',
+        buffer: Buffer.from('MZ'),
+      } as Express.Multer.File;
+
+      await expect(
+        controller.uploadFile(makeReq({ businessId: 'biz-1', role: 'ADMIN' }), exeFile, {
+          kind: 'NOTES',
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(service.ingestFromFile).not.toHaveBeenCalled();
+    });
+
+    it('rejects a legacy .xls pointing the user to .xlsx', async () => {
+      const xlsFile = {
+        originalname: 'viejo.xls',
+        mimetype: 'application/vnd.ms-excel',
+        buffer: Buffer.from('legacy'),
+      } as Express.Multer.File;
+
+      await expect(
+        controller.uploadFile(makeReq({ businessId: 'biz-1', role: 'ADMIN' }), xlsFile, {
+          kind: 'NOTES',
+        }),
+      ).rejects.toThrow(/\.xlsx/);
+
+      expect(service.ingestFromFile).not.toHaveBeenCalled();
     });
   });
 

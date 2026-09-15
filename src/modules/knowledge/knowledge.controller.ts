@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   ParseFilePipe,
   MaxFileSizeValidator,
-  FileTypeValidator,
+  BadRequestException,
   Logger,
   UseGuards,
   Req,
@@ -20,6 +20,14 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { KnowledgeService } from './knowledge.service';
+import { resolveUploadType } from './file-type';
+
+/**
+ * Límite de tamaño de archivo. El decorador se evalúa al cargar la clase
+ * (antes de la DI), así que se lee de process.env — loadEnv() ya lo validó
+ * al arrancar la app.
+ */
+const MAX_FILE_SIZE_BYTES = Number(process.env.KNOWLEDGE_MAX_FILE_SIZE_MB ?? 20) * 1024 * 1024;
 
 @UseGuards(JwtAuthGuard)
 @Controller('api/knowledge')
@@ -53,10 +61,7 @@ export class KnowledgeController {
     @Req() req: Request,
     @UploadedFile(
       new ParseFilePipe({
-        validators: [
-          new MaxFileSizeValidator({ maxSize: 20 * 1024 * 1024 }),
-          new FileTypeValidator({ fileType: /(pdf|csv|text\/csv)$/ }),
-        ],
+        validators: [new MaxFileSizeValidator({ maxSize: MAX_FILE_SIZE_BYTES })],
       }),
     )
     file: Express.Multer.File,
@@ -67,13 +72,19 @@ export class KnowledgeController {
     },
   ) {
     const user = req.user as { businessId: string; role: string } | undefined;
+
+    const fileType = resolveUploadType(file.originalname, file.mimetype);
+    if (!fileType.ok) {
+      throw new BadRequestException(fileType.reason);
+    }
+
     const docId = await this.knowledgeService.ingestFromFile({
       businessId: user?.businessId ?? '',
       kind: body.kind,
       title: body.title ?? file.originalname,
       source: file.originalname,
       content: file.buffer,
-      mimeType: file.mimetype,
+      mimeType: fileType.mimeType,
     });
     return { documentId: docId, status: 'indexed' };
   }

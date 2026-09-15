@@ -1,11 +1,18 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { KnowledgeDocumentRepository } from '@modules/persistence/postgres/knowledge-document.repository';
 import { KnowledgeChunkRepository } from '@modules/persistence/postgres/knowledge-chunk.repository';
 import type { DocumentExtractorPort } from '@core/ports/document-extractor.port';
 import type { ChunkerPort } from '@core/ports/chunker.port';
 import type { EmbeddingProviderPort } from '@core/ports/embedding-provider.port';
-import { DOCUMENT_EXTRACTORS_TOKEN, CHUNKER_TOKEN, EMBEDDING_PROVIDER_TOKEN } from '@core/tokens';
+import type { ResponseCachePort } from '@core/ports/response-cache.port';
+import {
+  DOCUMENT_EXTRACTORS_TOKEN,
+  CHUNKER_TOKEN,
+  EMBEDDING_PROVIDER_TOKEN,
+  SEMANTIC_CACHE_TOKEN,
+  EXACT_CACHE_TOKEN,
+} from '@core/tokens';
 
 @Injectable()
 export class KnowledgeService {
@@ -17,6 +24,11 @@ export class KnowledgeService {
     @Inject(DOCUMENT_EXTRACTORS_TOKEN) private readonly extractors: DocumentExtractorPort[],
     @Inject(CHUNKER_TOKEN) private readonly chunker: ChunkerPort,
     @Inject(EMBEDDING_PROVIDER_TOKEN) private readonly embedder: EmbeddingProviderPort,
+    // Las cachés son opcionales: KnowledgeModule y CacheModule se cargan por
+    // feature flags independientes (FEATURE_TOOL_KNOWLEDGE_SEARCH vs
+    // FEATURE_CACHE_*). Sin @Optional(), knowledge on + cache off rompe el boot.
+    @Optional() @Inject(SEMANTIC_CACHE_TOKEN) private readonly semanticCache?: ResponseCachePort,
+    @Optional() @Inject(EXACT_CACHE_TOKEN) private readonly exactCache?: ResponseCachePort,
   ) {}
 
   async ingestFromText(data: {
@@ -49,6 +61,7 @@ export class KnowledgeService {
 
       const totalChunks = await this.chunkRepo.countByDocument(doc.id);
       await this.docRepo.updateStatus(doc.id, 'INDEXED', { chunkCount: totalChunks });
+      await this.invalidateCaches(data.businessId);
     } catch (error) {
       await this.docRepo.updateStatus(doc.id, 'FAILED', {
         errorMessage: `Embedding failed: ${(error as Error).message}`,
@@ -114,6 +127,7 @@ export class KnowledgeService {
 
       const totalChunks = await this.chunkRepo.countByDocument(doc.id);
       await this.docRepo.updateStatus(doc.id, 'INDEXED', { chunkCount: totalChunks });
+      await this.invalidateCaches(data.businessId);
     } catch (error) {
       await this.docRepo.updateStatus(doc.id, 'FAILED', {
         errorMessage: `Embedding failed: ${(error as Error).message}`,
@@ -190,6 +204,31 @@ export class KnowledgeService {
 
   async deleteDocument(id: string): Promise<void> {
     await this.docRepo.softDelete(id);
+  }
+
+  /**
+   * Invalida la response cache del business tras re-indexar (FR-25). Sin esto,
+   * el agente seguiría respondiendo con la versión vieja de precios/políticas.
+   *
+   * Nunca lanza: un fallo de caché no debe marcar como FAILED una indexación
+   * que sí se completó.
+   */
+  private async invalidateCaches(businessId: string): Promise<void> {
+    const caches = [this.semanticCache, this.exactCache].filter(
+      (cache): cache is ResponseCachePort => cache !== undefined,
+    );
+    if (caches.length === 0) return;
+
+    const results = await Promise.allSettled(caches.map((cache) => cache.invalidate(businessId)));
+
+    results.forEach((result, index) => {
+      const name = caches[index].name;
+      if (result.status === 'fulfilled') {
+        this.logger.log(`Invalidated ${result.value} cached responses (${name})`);
+      } else {
+        this.logger.warn(`Cache invalidation failed (${name}): ${String(result.reason)}`);
+      }
+    });
   }
 
   private hashContent(text: string): string {

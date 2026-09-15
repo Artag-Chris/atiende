@@ -129,11 +129,11 @@ Numerados. Testeables. Cualquier feature nueva tiene que tener su FR.
 
 Complementa el catálogo (que es estructurado: productos con precio/stock) con documentos no-estructurados (FAQs, políticas, PDFs, manuales). Diseño completo en [01_ARCHITECTURE.md §14](../docs/01_ARCHITECTURE.md#14-ingesta-de-conocimiento-pdfs-faqs-políticas).
 
-- **FR-22:** El sistema permite al business cargar documentos de conocimiento desde el dashboard. Tipos soportados v1: CSV, Excel (`.xlsx`/`.xls`), PDF con texto seleccionable, formularios web (FAQs).
-- **FR-23:** La ingesta es asíncrona (BullMQ `KNOWLEDGE_INDEXING`). Pipeline: extract → chunk → embed → store. Status visible en dashboard: `PENDING → EXTRACTING → CHUNKING → EMBEDDING → INDEXED | FAILED`.
+- **FR-22:** El sistema permite al business cargar documentos de conocimiento desde el dashboard. Tipos soportados v1: Markdown (`.md`/`.markdown`), texto plano (`.txt`), PDF con texto seleccionable, CSV y Excel (`.xlsx`). El tipo se resuelve **por extensión** (los navegadores reportan MIME inconsistente para `.md`/`.txt`, a veces `application/octet-stream`); `.xls` (Excel antiguo, formato BIFF) no está soportado y se rechaza con un mensaje que indica guardarlo como `.xlsx`. Además de la subida por dashboard, existe ingesta por **CLI** (`npm run knowledge:ingest -- <archivo>`), para cargar documentos desde disco sin depender del seed.
+- **FR-23:** La ingesta es asíncrona (BullMQ `KNOWLEDGE_INDEXING`). Pipeline: extract → chunk → embed → store. Status visible en dashboard: `PENDING → EXTRACTING → CHUNKING → EMBEDDING → INDEXED | FAILED`. ⚠️ **Pendiente:** hoy la ingesta corre de forma **síncrona** dentro del request; la cola `KNOWLEDGE_INDEXING` está declarada en config pero no registrada ni con worker.
 - **FR-24:** El agente tiene la tool `search_knowledge(query, kind?)` que retorna los top-K chunks más similares al query (cosine > `RAG_MIN_SIMILARITY`), filtrables por `KnowledgeKind` (`FAQ` / `POLICY` / `PDF_CATALOG` / `MANUAL` / `NOTES`).
-- **FR-25:** Re-subir un documento con el mismo `source` actualiza la entrada existente. Si el `sourceHash` no cambió, no se re-indexa (idempotente). Si cambió, los chunks viejos quedan `active=false` y se generan los nuevos. La response cache del business se invalida automáticamente tras re-indexar.
-- **FR-26:** Tamaño máximo de archivo: `KNOWLEDGE_MAX_FILE_SIZE_MB` (default 20 MB). PDFs escaneados (imágenes sin texto) son **out-of-scope v1** — se detectan y se marcan `FAILED` con mensaje claro. OCR llega en v2.
+- **FR-25:** Re-subir un documento con el mismo `source` actualiza la entrada existente. Si el `sourceHash` no cambió, no se re-indexa (idempotente). Si cambió, se borran los chunks anteriores y se generan los nuevos. La response cache del business (exacta + semántica) **se invalida automáticamente tras re-indexar** — no en el caso idempotente.
+- **FR-26:** Tamaño máximo de archivo: `KNOWLEDGE_MAX_FILE_SIZE_MB` (default 20 MB, cableada en `KnowledgeController`). PDFs escaneados (imágenes sin texto) son **out-of-scope v1** — se detectan y se marcan `FAILED` con mensaje claro. OCR llega en v2.
 
 ### Multi-tenancy
 
