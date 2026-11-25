@@ -745,5 +745,78 @@ describe('DashboardController', () => {
         controller.sendEmail(validBody, makeReq({ businessId: 'biz-1', role: 'ADMIN' })),
       ).rejects.toThrow(ServiceUnavailableException);
     });
+
+    it('forwards fromDomain and returns selected sender when configured', async () => {
+      emailSender.listSenders = vi.fn().mockReturnValue([
+        {
+          domain: 'artagdev.com.co',
+          defaultFrom: 'Artag <info@artagdev.com.co>',
+          displayName: 'Artag',
+          isDefault: true,
+        },
+        {
+          domain: 'lumenxlabs.com.co',
+          defaultFrom: 'Lumen X <info@lumenxlabs.com.co>',
+          displayName: 'Lumen X',
+          isDefault: false,
+        },
+      ]);
+
+      const res = await controller.sendEmail(
+        { ...validBody, fromDomain: 'artagdev.com.co' },
+        makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+      );
+
+      expect(emailSender.send).toHaveBeenCalledWith('cliente@mail.com', 'Hola', 'Mensaje', {
+        fromDomain: 'artagdev.com.co',
+        replyTo: undefined,
+      });
+      expect(res).toEqual({
+        ok: true,
+        to: 'cliente@mail.com',
+        from: 'Artag <info@artagdev.com.co>',
+      });
+    });
+
+    it('rejects unconfigured fromDomain', async () => {
+      emailSender.listSenders = vi.fn().mockReturnValue([
+        {
+          domain: 'artagdev.com.co',
+          defaultFrom: 'Artag <info@artagdev.com.co>',
+          isDefault: true,
+        },
+      ]);
+
+      await expect(
+        controller.sendEmail(
+          { ...validBody, fromDomain: 'otro.com' },
+          makeReq({ businessId: 'biz-1', role: 'ADMIN' }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(emailSender.send).not.toHaveBeenCalled();
+    });
+
+    it('lists configured senders for ADMIN users', () => {
+      emailSender.listSenders = vi.fn().mockReturnValue([
+        {
+          domain: 'artagdev.com.co',
+          defaultFrom: 'Artag <info@artagdev.com.co>',
+          displayName: 'Artag',
+          isDefault: true,
+        },
+      ]);
+
+      const res = controller.listEmailSenders(makeReq({ businessId: 'biz-1', role: 'ADMIN' }));
+      expect(res).toEqual({
+        senders: [
+          {
+            domain: 'artagdev.com.co',
+            defaultFrom: 'Artag <info@artagdev.com.co>',
+            displayName: 'Artag',
+            isDefault: true,
+          },
+        ],
+      });
+    });
   });
 });

@@ -308,13 +308,34 @@ export class DashboardController {
   }
 
   /**
+   * Lista los remitentes disponibles para enviar emails desde el dashboard.
+   */
+  @Get('emails/senders')
+  listEmailSenders(@Req() req: Request) {
+    const user = req.user as { businessId: string; role: string } | undefined;
+    if (user?.role !== 'ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Requires one of: ADMIN, SUPER_ADMIN');
+    }
+
+    const senders = this.emailSender?.listSenders?.() ?? [];
+    return { senders };
+  }
+
+  /**
    * Envío de email desde el dashboard. SOLO accesible por usuarios con JWT
    * (roles ADMIN/SUPER_ADMIN). El agente de chat no tiene ninguna tool que
    * invoque este camino, así que un cliente no puede pedirle que envíe emails.
    */
   @Post('emails/send')
   async sendEmail(
-    @Body() body: { to?: string; subject?: string; text?: string },
+    @Body()
+    body: {
+      to?: string;
+      subject?: string;
+      text?: string;
+      fromDomain?: string;
+      replyTo?: string;
+    },
     @Req() req: Request,
   ) {
     const user = req.user as { businessId: string; role: string } | undefined;
@@ -330,10 +351,15 @@ export class DashboardController {
     const to = body?.to?.trim() ?? '';
     const subject = body?.subject?.trim() ?? '';
     const text = body?.text?.trim() ?? '';
+    const fromDomain = body?.fromDomain?.trim().toLowerCase() || undefined;
+    const replyTo = body?.replyTo?.trim() || undefined;
 
     const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!to || !EMAIL_RE.test(to)) {
       throw new BadRequestException('Se requiere un email destino válido');
+    }
+    if (replyTo && !EMAIL_RE.test(replyTo)) {
+      throw new BadRequestException('El email de respuesta (replyTo) no es válido');
     }
     if (!subject) {
       throw new BadRequestException('El asunto no puede estar vacío');
@@ -348,23 +374,47 @@ export class DashboardController {
       throw new BadRequestException(`El mensaje supera los ${MAX_EMAIL_BODY_LENGTH} caracteres`);
     }
 
+    const configuredSenders = this.emailSender.listSenders?.() ?? [];
+    if (fromDomain && configuredSenders.length > 0) {
+      const exists = configuredSenders.some((s) => s.domain.toLowerCase() === fromDomain);
+      if (!exists) {
+        throw new BadRequestException(`El dominio remitente "${fromDomain}" no está configurado`);
+      }
+    }
+
     try {
-      const sent = await this.emailSender.send(to, subject, text);
+      const hasOptions = Boolean(fromDomain || replyTo);
+      const sent = hasOptions
+        ? await this.emailSender.send(to, subject, text, { fromDomain, replyTo })
+        : await this.emailSender.send(to, subject, text);
       if (!sent) {
         throw new ServiceUnavailableException(
           'El proveedor de email no está configurado (EMAIL_DOMAINS_CONFIG / RESEND_API_KEY)',
         );
       }
     } catch (error) {
-      if (error instanceof ServiceUnavailableException) throw error;
+      if (error instanceof ServiceUnavailableException || error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof Error && error.name === 'UnknownEmailDomainError') {
+        throw new BadRequestException(`El dominio remitente no está configurado`);
+      }
       this.logger.error(`Dashboard email send failed: ${error}`);
       throw new ServiceUnavailableException('No se pudo enviar el email');
     }
 
+    const selectedSender = fromDomain
+      ? configuredSenders.find((s) => s.domain.toLowerCase() === fromDomain)
+      : configuredSenders.find((s) => s.isDefault);
+
     this.logger.log(
-      `Email sent from dashboard by role ${user?.role ?? '?'} (businessId ${user?.businessId ?? '?'}) to ${to}`,
+      `Email sent from dashboard by role ${user?.role ?? '?'} (businessId ${user?.businessId ?? '?'}) to ${to}${selectedSender ? ` from ${selectedSender.defaultFrom}` : ''}`,
     );
-    return { ok: true, to };
+    return {
+      ok: true,
+      to,
+      ...(selectedSender ? { from: selectedSender.defaultFrom } : {}),
+    };
   }
 
   @Post('conversations/:id/resolve')
